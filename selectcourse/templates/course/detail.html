@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ course.name }} - 课程详情{% endblock %}
+{% block content %}
+<div class="page-header">
+    <a href="{{ url_for('course.list_courses') }}" class="btn btn-sm">&laquo; 返回列表</a>
+    <h2>{{ course.name }}</h2>
+</div>
+
+<div class="course-detail">
+    <div class="detail-card">
+        <div class="detail-row">
+            <span class="detail-label">课程编号</span>
+            <span class="detail-value">{{ course.code }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">授课教师</span>
+            <span class="detail-value">{{ course.teacher }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">学分</span>
+            <span class="detail-value">{{ course.credits }} 学分</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">学期</span>
+            <span class="detail-value">{{ course.semester }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">上课地点</span>
+            <span class="detail-value">{{ course.location or '待定' }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">选课人数</span>
+            <span class="detail-value {% if course.is_full %}text-danger{% endif %}">
+                {{ course.enrolled_count }} / {{ course.capacity }}
+                {% if course.is_full %}(已满){% else %}(剩余 {{ course.available_slots }} 个名额){% endif %}
+            </span>
+        </div>
+        {% if course.schedules %}
+        <div class="detail-row">
+            <span class="detail-label">上课时间</span>
+            <span class="detail-value">
+                {% for s in course.schedules %}
+                {{ ['周一','周二','周三','周四','周五','周六','周日'][s.day_of_week] }}
+                {{ s.start_time }} - {{ s.end_time }}{% if not loop.last %}<br>{% endif %}
+                {% endfor %}
+            </span>
+        </div>
+        {% endif %}
+        {% if course.description %}
+        <div class="detail-row">
+            <span class="detail-label">课程描述</span>
+            <span class="detail-value">{{ course.description }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if not current_user.is_admin %}
+    <div class="detail-actions">
+        {% if enrolled %}
+        <form method="POST" action="{{ url_for('course.drop', course_id=course.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('确定要退选该课程吗？')">退选课程</button>
+        </form>
+        {% elif not course.is_full %}
+        <form method="POST" action="{{ url_for('course.enroll', course_id=course.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-primary">立即选课</button>
+        </form>
+        {% else %}
+        <button class="btn btn-disabled" disabled>课程已满</button>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

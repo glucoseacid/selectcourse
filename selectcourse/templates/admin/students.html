@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}学生管理 - 管理后台{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h2>👨‍🎓 学生管理</h2>
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm">&laquo; 返回后台</a>
+</div>
+
+{% if students %}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>用户名</th>
+            <th>邮箱</th>
+            <th>注册时间</th>
+            <th>已选课程数</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for student in students %}
+        <tr>
+            <td>{{ student.id }}</td>
+            <td>{{ student.username }}</td>
+            <td>{{ student.email }}</td>
+            <td>{{ student.created_at.strftime('%Y-%m-%d') }}</td>
+            <td>{{ student.selections.filter_by(status='enrolled').count() }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="pagination">
+    {% if pagination.has_prev %}
+    <a href="{{ url_for('admin.manage_students', page=pagination.prev_num) }}">&laquo; 上一页</a>
+    {% endif %}
+    <span>第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
+    {% if pagination.has_next %}
+    <a href="{{ url_for('admin.manage_students', page=pagination.next_num) }}">下一页 &raquo;</a>
+    {% endif %}
+</div>
+{% else %}
+<div class="empty-state">
+    <p>📭 暂无学生注册</p>
+</div>
+{% endif %}
+{% endblock %}

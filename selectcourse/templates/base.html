@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}网上选课系统{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="{{ url_for('main.index') }}" class="navbar-brand">🎓 选课系统</a>
+            <div class="navbar-nav">
+                {% if current_user.is_authenticated %}
+                    {% if current_user.is_admin %}
+                        <a href="{{ url_for('admin.dashboard') }}">管理后台</a>
+                        <a href="{{ url_for('admin.manage_courses') }}">课程管理</a>
+                        <a href="{{ url_for('admin.manage_students') }}">学生管理</a>
+                    {% else %}
+                        <a href="{{ url_for('course.list_courses') }}">课程列表</a>
+                        <a href="{{ url_for('course.my_courses') }}">我的选课</a>
+                    {% endif %}
+                    <span class="nav-user">{{ current_user.username }}</span>
+                    <a href="{{ url_for('auth.logout') }}" class="btn-logout">退出</a>
+                {% else %}
+                    <a href="{{ url_for('auth.login') }}">登录</a>
+                    <a href="{{ url_for('auth.register') }}">注册</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-container">
+        {% for category, msg in messages %}
+        <div class="flash flash-{{ category }}">{{ msg }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 网上选课系统</p>
+        </div>
+    </footer>
+</body>
+</html>

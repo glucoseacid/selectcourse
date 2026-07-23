@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}编辑课程 - 管理后台{% endblock %}
+{% block content %}
+<div class="form-container">
+    <h2>✏️ 编辑课程：{{ course.name }}</h2>
+    <form method="POST" novalidate>
+        {{ form.hidden_tag() }}
+        <div class="form-row">
+            <div class="form-group">
+                {{ form.name.label }}
+                {{ form.name(class="form-control") }}
+                {% for error in form.name.errors %}<span class="form-error">{{ error }}</span>{% endfor %}
+            </div>
+            <div class="form-group">
+                {{ form.code.label }}
+                {{ form.code(class="form-control") }}
+                {% for error in form.code.errors %}<span class="form-error">{{ error }}</span>{% endfor %}
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                {{ form.teacher.label }}
+                {{ form.teacher(class="form-control") }}
+                {% for error in form.teacher.errors %}<span class="form-error">{{ error }}</span>{% endfor %}
+            </div>
+            <div class="form-group">
+                {{ form.semester.label }}
+                {{ form.semester(class="form-control") }}
+                {% for error in form.semester.errors %}<span class="form-error">{{ error }}</span>{% endfor %}
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                {{ form.credits.label }}
+                {{ form.credits(class="form-control") }}
+                {% for error in form.credits.errors %}<span class="form-error">{{ error }}</span>{% endfor %}
+            </div>
+            <div class="form-group">
+                {{ form.capacity.label }}
+                {{ form.capacity(class="form-control") }}
+                {% for error in form.capacity.errors %}<span class="form-error">{{ error }}</span>{% endfor %}
+            </div>
+        </div>
+        <div class="form-group">
+            {{ form.location.label }}
+            {{ form.location(class="form-control") }}
+        </div>
+        <div class="form-group">
+            {{ form.description.label }}
+            {{ form.description(class="form-control", rows="3") }}
+        </div>
+        <h3>⏰ 排课信息（可选）</h3>
+        <div class="form-row">
+            <div class="form-group">
+                {{ form.day_of_week.label }}
+                {{ form.day_of_week(class="form-control") }}
+            </div>
+            <div class="form-group">
+                {{ form.start_time.label }}
+                {{ form.start_time(class="form-control") }}
+            </div>
+            <div class="form-group">
+                {{ form.end_time.label }}
+                {{ form.end_time(class="form-control") }}
+            </div>
+        </div>
+        <div class="form-actions">
+            <a href="{{ url_for('admin.manage_courses') }}" class="btn btn-secondary">取消</a>
+            {{ form.submit(class="btn btn-primary") }}
+        </div>
+    </form>
+</div>
+{% endblock %}

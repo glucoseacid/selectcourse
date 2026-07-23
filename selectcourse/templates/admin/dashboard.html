@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}管理后台 - 网上选课系统{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h2>⚙️ 管理后台</h2>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-number">{{ total_students }}</div>
+        <div class="stat-label">👨‍🎓 学生总数</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ total_courses }}</div>
+        <div class="stat-label">📚 课程总数</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ total_selections }}</div>
+        <div class="stat-label">✅ 选课记录</div>
+    </div>
+</div>
+
+<div class="admin-links">
+    <a href="{{ url_for('admin.manage_courses') }}" class="btn btn-primary">📚 管理课程</a>
+    <a href="{{ url_for('admin.manage_students') }}" class="btn btn-secondary">👨‍🎓 管理学生</a>
+    <a href="{{ url_for('admin.create_course') }}" class="btn btn-primary">➕ 添加新课程</a>
+</div>
+{% endblock %}

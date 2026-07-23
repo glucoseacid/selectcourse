@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}我的选课 - 网上选课系统{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h2>📋 我的选课</h2>
+    <a href="{{ url_for('course.list_courses') }}" class="btn btn-primary">浏览更多课程</a>
+</div>
+
+{% if selections %}
+<div class="course-grid">
+    {% for selection in selections %}
+    <div class="course-card">
+        <div class="course-card-header">
+            <h3>{{ selection.course.name }}</h3>
+            <span class="course-code-badge">{{ selection.course.code }}</span>
+        </div>
+        <p class="course-teacher">👨‍🏫 {{ selection.course.teacher }}</p>
+        <p class="course-meta">
+            <span>📝 {{ selection.course.credits }} 学分</span>
+            <span>🏫 {{ selection.course.semester }}</span>
+        </p>
+        {% if selection.course.schedules %}
+        <p class="course-schedule">
+            {% for s in selection.course.schedules %}
+            🕐 {{ ['周一','周二','周三','周四','周五','周六','周日'][s.day_of_week] }} {{ s.start_time }}-{{ s.end_time }}
+            {% endfor %}
+        </p>
+        {% endif %}
+        <p class="course-meta">
+            <small>选课时间：{{ selection.enrolled_at.strftime('%Y-%m-%d %H:%M') }}</small>
+        </p>
+        <div class="course-card-actions">
+            <a href="{{ url_for('course.detail', course_id=selection.course.id) }}" class="btn btn-sm">详情</a>
+            <form method="POST" action="{{ url_for('course.drop', course_id=selection.course.id) }}" style="display:inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('确定要退选该课程吗？')">退选</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="summary-card">
+    <p>📊 已选 <strong>{{ selections|length }}</strong> 门课程，共 <strong>{{ selections|sum(attribute='course.credits') }}</strong> 学分</p>
+</div>
+{% else %}
+<div class="empty-state">
+    <p>📭 你还没有选择任何课程</p>
+    <a href="{{ url_for('course.list_courses') }}" class="btn btn-primary">去选课</a>
+</div>
+{% endif %}
+{% endblock %}
