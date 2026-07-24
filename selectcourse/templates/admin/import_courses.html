@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}批量导入课程 - 管理后台{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h2>📥 批量导入课程</h2>
+    <a href="{{ url_for('admin.manage_courses') }}" class="btn btn-sm">&laquo; 返回课程管理</a>
+</div>
+
+<div class="form-container" style="max-width: 720px;">
+    <p style="color: var(--gray-500); margin-bottom: 20px;">
+        支持 <strong>CSV</strong>、<strong>JSON</strong>、<strong>Excel (.xlsx)</strong> 三种格式批量导入课程数据。
+    </p>
+
+    <form method="POST" enctype="multipart/form-data">
+        {{ form.hidden_tag() }}
+
+        <div class="form-group">
+            <label>{{ form.file.label }}</label>
+            {{ form.file(class="form-control", accept=".csv,.json,.xlsx") }}
+            {% for error in form.file.errors %}
+            <span class="form-error">{{ error }}</span>
+            {% endfor %}
+        </div>
+
+        <div class="form-actions">
+            {{ form.submit(class="btn btn-primary") }}
+        </div>
+    </form>
+
+    {% if success_count is defined %}
+    <div class="import-result" style="margin-top: 24px;">
+        <div class="flash flash-success">
+            ✅ 成功导入 <strong>{{ success_count }}</strong> 门课程
+            {% if skip_count %}，跳过 <strong>{{ skip_count }}</strong> 行{% endif %}
+            （共 {{ total_rows }} 行数据）
+        </div>
+    </div>
+    {% endif %}
+
+    {% if errors %}
+    <div class="import-errors" style="margin-top: 16px;">
+        <h3 style="font-size: 1rem; margin-bottom: 8px; color: var(--danger);">⚠️ 错误详情</h3>
+        <ul style="background: #fef2f2; border-radius: var(--radius); padding: 12px 16px 12px 36px; font-size: 0.85rem; color: #991b1b; list-style: disc;">
+            {% for error in errors %}
+            <li style="margin-bottom: 4px;">{{ error }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>
+
+<div class="form-container" style="max-width: 720px; margin-top: 24px;">
+    <h3>📋 文件格式说明</h3>
+
+    <h3 style="margin-top: 16px;">CSV / Excel 列名（支持中文表头）</h3>
+    <table class="data-table" style="margin-top: 8px;">
+        <thead>
+            <tr><th>字段</th><th>必填</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>课程名称 / name</td><td>✅</td><td>课程名称</td></tr>
+            <tr><td>课程编号 / code</td><td>✅</td><td>唯一编号</td></tr>
+            <tr><td>授课教师 / teacher</td><td>✅</td><td>教师姓名</td></tr>
+            <tr><td>学分 / credits</td><td>✅</td><td>数值，0.5~10</td></tr>
+            <tr><td>容量 / capacity</td><td>✅</td><td>整数，1~999</td></tr>
+            <tr><td>学期 / semester</td><td>✅</td><td>如 "2026-秋季"</td></tr>
+            <tr><td>课程描述 / description</td><td></td><td>可选</td></tr>
+            <tr><td>上课地点 / location</td><td></td><td>可选</td></tr>
+            <tr><td>上课日 / day_of_week</td><td></td><td>0=周一 … 6=周日</td></tr>
+            <tr><td>开始时间 / start_time</td><td></td><td>HH:MM，如 08:00</td></tr>
+            <tr><td>结束时间 / end_time</td><td></td><td>HH:MM，如 09:40</td></tr>
+        </tbody>
+    </table>
+
+    <h3 style="margin-top: 20px;">JSON 格式示例</h3>
+    <pre style="background: var(--gray-100); border-radius: var(--radius); padding: 16px; font-size: 0.8rem; overflow-x: auto; line-height: 1.5;"><code>[
+  {
+    "name": "高等数学",
+    "code": "MATH201",
+    "teacher": "赵教授",
+    "credits": 4.0,
+    "capacity": 80,
+    "semester": "2026-秋季",
+    "location": "教学楼D-201",
+    "day_of_week": 0,
+    "start_time": "08:00",
+    "end_time": "09:40"
+  }
+]</code></pre>
+</div>
+{% endblock %}

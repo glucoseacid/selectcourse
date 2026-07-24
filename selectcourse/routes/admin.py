@@ -1,4 +1,5 @@
 """管理员路由"""
+import logging
 from functools import wraps
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
@@ -6,7 +7,9 @@ from selectcourse.extensions import db
 from selectcourse.models.user import User
 from selectcourse.models.course import Course, CourseSchedule
 from selectcourse.models.selection import Selection
-from selectcourse.forms import CourseForm
+from selectcourse.forms import CourseForm, CourseImportForm, parse_import_file, _normalize_row, _validate_row
+
+logger = logging.getLogger(__name__)
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -136,6 +139,106 @@ def delete_course(course_id: int):
     db.session.commit()
     flash(f"课程「{name}」已删除。", "info")
     return redirect(url_for("admin.manage_courses"))
+
+
+@admin_bp.route("/courses/import", methods=["GET", "POST"])
+@admin_required
+def import_courses():
+    """批量导入课程：支持 CSV / JSON / Excel (.xlsx)"""
+    form = CourseImportForm()
+    if form.validate_on_submit():
+        file = form.file.data
+        filename = (file.filename or "").lower()
+
+        # 推断格式
+        if filename.endswith(".csv"):
+            fmt = "csv"
+        elif filename.endswith(".json"):
+            fmt = "json"
+        elif filename.endswith(".xlsx"):
+            fmt = "xlsx"
+        else:
+            flash("不支持的文件格式，请上传 CSV、JSON 或 Excel 文件。", "danger")
+            return render_template("admin/import_courses.html", form=form)
+
+        rows, parse_error = parse_import_file(file, fmt)
+        if parse_error:
+            flash(parse_error, "danger")
+            return render_template("admin/import_courses.html", form=form)
+
+        if not rows:
+            flash("文件中没有数据行。", "warning")
+            return render_template("admin/import_courses.html", form=form)
+
+        success_count = 0
+        skip_count = 0
+        errors = []
+        new_courses = []
+
+        for i, raw_row in enumerate(rows, start=2):  # 从第 2 行开始（第 1 行是表头）
+            row = _normalize_row(raw_row)
+            row_errors = _validate_row(row, i)
+            if row_errors:
+                errors.extend(row_errors)
+                skip_count += 1
+                continue
+
+            # 检查课程编号是否已存在
+            existing = Course.query.filter_by(code=row["code"]).first()
+            if existing:
+                errors.append(f"第 {i} 行课程编号「{row['code']}」已存在，跳过。")
+                skip_count += 1
+                continue
+
+            try:
+                course = Course(
+                    name=row["name"],
+                    code=row["code"],
+                    teacher=row["teacher"],
+                    credits=row["credits"],
+                    capacity=row["capacity"],
+                    semester=row["semester"],
+                    location=row.get("location", ""),
+                    description=row.get("description", ""),
+                )
+                db.session.add(course)
+                db.session.flush()
+
+                day = row.get("day_of_week")
+                start_t = row.get("start_time")
+                end_t = row.get("end_time")
+                if day is not None and start_t and end_t:
+                    schedule = CourseSchedule(
+                        course_id=course.id,
+                        day_of_week=day,
+                        start_time=start_t,
+                        end_time=end_t,
+                    )
+                    db.session.add(schedule)
+
+                new_courses.append(course)
+                success_count += 1
+            except Exception as e:
+                db.session.rollback()
+                errors.append(f"第 {i} 行导入失败: {e}")
+                skip_count += 1
+
+        if new_courses:
+            db.session.commit()
+            flash(f"成功导入 {success_count} 门课程！", "success")
+        if skip_count:
+            flash(f"跳过 {skip_count} 行（详见下方错误信息）。", "warning")
+
+        return render_template(
+            "admin/import_courses.html",
+            form=form,
+            success_count=success_count,
+            skip_count=skip_count,
+            errors=errors,
+            total_rows=len(rows),
+        )
+
+    return render_template("admin/import_courses.html", form=form)
 
 
 @admin_bp.route("/students")
