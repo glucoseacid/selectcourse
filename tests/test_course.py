@@ -128,6 +128,30 @@ class TestDrop:
         ).first()
         assert selection.status == "dropped"
 
+    def test_re_enroll_after_drop(self, client, enrolled_student, sample_course):
+        """退课后重新选课"""
+        # 先退课
+        client.post("/auth/login", data={
+            "username": "teststudent",
+            "password": "password123",
+        })
+        client.post(f"/course/{sample_course.id}/drop", follow_redirects=True)
+
+        # 重新选课
+        response = client.post(
+            f"/course/{sample_course.id}/enroll",
+            follow_redirects=True,
+        )
+        assert "成功选择" in response.get_data(as_text=True)
+
+        # 验证复用同一条记录，状态变回 enrolled
+        from selectcourse.extensions import db as _db
+        selections = Selection.query.filter_by(
+            student_id=enrolled_student.id, course_id=sample_course.id
+        ).all()
+        assert len(selections) == 1  # 只有一条记录，没有重复插入
+        assert selections[0].status == "enrolled"
+
     def test_drop_not_enrolled(self, login_student, sample_course):
         """退选未选的课程"""
         response = login_student.post(

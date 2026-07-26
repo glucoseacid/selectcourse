@@ -1,4 +1,5 @@
 """课程路由（浏览 / 详情 / 选课 / 退课）"""
+from datetime import datetime, timezone
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from selectcourse.extensions import db
@@ -88,16 +89,16 @@ def enroll(course_id: int):
         flash("课程不存在。", "danger")
         return redirect(url_for("course.list_courses"))
 
-    # 检查是否已选
+    # 检查是否已选（不含已退选的）
     existing = Selection.query.filter_by(
-        student_id=current_user.id, course_id=course_id, status="enrolled"
+        student_id=current_user.id, course_id=course_id
     ).first()
-    if existing:
+    if existing and existing.status == "enrolled":
         flash("你已选择该课程。", "warning")
         return redirect(url_for("course.detail", course_id=course_id))
 
-    # 检查容量
-    if course.is_full:
+    # 检查容量（退课重选不占新名额）
+    if (not existing or existing.status != "enrolled") and course.is_full:
         flash("课程名额已满，无法选课。", "danger")
         return redirect(url_for("course.detail", course_id=course_id))
 
@@ -106,10 +107,14 @@ def enroll(course_id: int):
         flash("与已选课程存在时间冲突，无法选课。", "danger")
         return redirect(url_for("course.detail", course_id=course_id))
 
-    # 执行选课
-    selection = Selection(student_id=current_user.id, course_id=course_id)
+    # 执行选课：已有退课记录则复用，否则新建
+    if existing:
+        existing.status = "enrolled"
+        existing.enrolled_at = datetime.now(timezone.utc)
+    else:
+        existing = Selection(student_id=current_user.id, course_id=course_id)
+        db.session.add(existing)
     course.enrolled_count += 1
-    db.session.add(selection)
     db.session.commit()
 
     flash(f"成功选择课程「{course.name}」！", "success")
