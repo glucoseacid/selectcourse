@@ -390,3 +390,88 @@ class TestAdminCourseImport:
         assert response.status_code == 200
         text = response.get_data(as_text=True)
         assert "没有数据" in text
+
+    def test_import_json_multi_schedule(self, login_admin):
+        """JSON 导入多时间段课程"""
+        schedules = [
+            {"day_of_week": 0, "start_time": "08:00", "end_time": "09:40"},
+            {"day_of_week": 2, "start_time": "10:00", "end_time": "11:40"},
+        ]
+        json_content = json.dumps([
+            {
+                "name": "多段课程",
+                "code": "MULTI200",
+                "teacher": "陈教授",
+                "credits": 3.0,
+                "capacity": 50,
+                "semester": "2026-秋季",
+                "schedules": json.dumps(schedules),
+            },
+        ])
+        data = {"file": (io.BytesIO(json_content.encode("utf-8")), "courses.json")}
+        response = login_admin.post(
+            "/admin/courses/import",
+            data=data,
+            content_type="multipart/form-data",
+            follow_redirects=False,
+        )
+        assert response.status_code == 200
+        assert "成功导入 1" in response.get_data(as_text=True)
+
+        from selectcourse.models.course import Course
+        c = Course.query.filter_by(code="MULTI200").first()
+        assert c is not None
+        assert len(c.schedules) == 2
+
+    def test_import_csv_multi_schedule(self, login_admin):
+        """CSV 导入多时间段课程"""
+        import csv
+        schedules = json.dumps([
+            {"day_of_week": 1, "start_time": "08:00", "end_time": "09:40"},
+            {"day_of_week": 3, "start_time": "14:00", "end_time": "15:40"},
+        ])
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(["课程名称", "课程编号", "授课教师", "学分", "容量", "学期", "时间段"])
+        writer.writerow(["英语听说", "ENG201", "李教授", "2.0", "40", "2026-秋季", schedules])
+        buf.seek(0)
+        data = {"file": (io.BytesIO(buf.getvalue().encode("utf-8")), "courses.csv")}
+        response = login_admin.post(
+            "/admin/courses/import",
+            data=data,
+            content_type="multipart/form-data",
+            follow_redirects=False,
+        )
+        assert response.status_code == 200
+        assert "成功导入 1" in response.get_data(as_text=True)
+
+        from selectcourse.models.course import Course
+        c = Course.query.filter_by(code="ENG201").first()
+        assert c is not None
+        assert len(c.schedules) == 2
+
+    def test_import_schedules_conflict(self, login_admin):
+        """导入时多时间段冲突应被拒绝"""
+        import csv
+        schedules = json.dumps([
+            {"day_of_week": 1, "start_time": "08:00", "end_time": "10:00"},
+            {"day_of_week": 1, "start_time": "09:00", "end_time": "11:00"},
+        ])
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(["课程名称", "课程编号", "授课教师", "学分", "容量", "学期", "时间段"])
+        writer.writerow(["冲突课程", "CONF01", "王教授", "3.0", "60", "2026-秋季", schedules])
+        buf.seek(0)
+        data = {"file": (io.BytesIO(buf.getvalue().encode("utf-8")), "courses.csv")}
+        response = login_admin.post(
+            "/admin/courses/import",
+            data=data,
+            content_type="multipart/form-data",
+            follow_redirects=False,
+        )
+        assert response.status_code == 200
+        text = response.get_data(as_text=True)
+        assert "时间段冲突" in text or "跳过" in text
+        # 确认未导入
+        from selectcourse.models.course import Course
+        assert Course.query.filter_by(code="CONF01").first() is None

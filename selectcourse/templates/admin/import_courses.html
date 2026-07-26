@@ -66,9 +66,10 @@
             <tr><td>学期 / semester</td><td>✅</td><td>如 "2026-秋季"</td></tr>
             <tr><td>课程描述 / description</td><td></td><td>可选</td></tr>
             <tr><td>上课地点 / location</td><td></td><td>可选</td></tr>
-            <tr><td>上课日 / day_of_week</td><td></td><td>0=周一 … 6=周日</td></tr>
-            <tr><td>开始时间 / start_time</td><td></td><td>HH:MM，如 08:00</td></tr>
-            <tr><td>结束时间 / end_time</td><td></td><td>HH:MM，如 09:40</td></tr>
+            <tr><td>上课日 / day_of_week</td><td></td><td>0=周一 … 6=周日（单时间段时使用）</td></tr>
+            <tr><td>开始时间 / start_time</td><td></td><td>HH:MM，如 08:00（单时间段时使用）</td></tr>
+            <tr><td>结束时间 / end_time</td><td></td><td>HH:MM，如 09:40（单时间段时使用）</td></tr>
+            <tr><td>时间段 / schedules</td><td></td><td>JSON 数组，支持多个时间段（优先）</td></tr>
         </tbody>
     </table>
 
@@ -85,6 +86,15 @@
     "day_of_week": 0,
     "start_time": "08:00",
     "end_time": "09:40"
+  },
+  {
+    "name": "大学英语",
+    "code": "ENG101",
+    "teacher": "孙教授",
+    "credits": 3.0,
+    "capacity": 60,
+    "semester": "2026-秋季",
+    "schedules": "[{\"day_of_week\":1,\"start_time\":\"10:00\",\"end_time\":\"11:40\"},{\"day_of_week\":3,\"start_time\":\"14:00\",\"end_time\":\"15:40\"}]"
   }
 ]</code></pre>
 </div>

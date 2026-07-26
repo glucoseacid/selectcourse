@@ -1,4 +1,5 @@
 """管理员路由"""
+import json
 import logging
 from functools import wraps
 from flask import Blueprint, render_template, redirect, url_for, flash, request
@@ -228,17 +229,38 @@ def import_courses():
                 db.session.add(course)
                 db.session.flush()
 
-                day = row.get("day_of_week")
-                start_t = row.get("start_time")
-                end_t = row.get("end_time")
-                if day is not None and start_t and end_t:
-                    schedule = CourseSchedule(
-                        course_id=course.id,
-                        day_of_week=day,
-                        start_time=start_t,
-                        end_time=end_t,
-                    )
-                    db.session.add(schedule)
+                # 解析多时间段：优先使用 schedules JSON，否则回退到单字段
+                schedules_created = False
+                schedules_raw = row.get("schedules", "").strip()
+                if schedules_raw:
+                    try:
+                        schedules_data = json.loads(schedules_raw)
+                        if isinstance(schedules_data, list):
+                            for s in schedules_data:
+                                sd = CourseSchedule(
+                                    course_id=course.id,
+                                    day_of_week=int(s["day_of_week"]),
+                                    start_time=str(s.get("start_time", "")).strip(),
+                                    end_time=str(s.get("end_time", "")).strip(),
+                                )
+                                db.session.add(sd)
+                            schedules_created = True
+                    except (json.JSONDecodeError, ValueError, TypeError, KeyError):
+                        pass  # 已在 _validate_row 中校验过，不应发生
+
+                if not schedules_created:
+                    # 回退：单时间段字段
+                    day = row.get("day_of_week")
+                    start_t = row.get("start_time")
+                    end_t = row.get("end_time")
+                    if day is not None and start_t and end_t:
+                        schedule = CourseSchedule(
+                            course_id=course.id,
+                            day_of_week=day,
+                            start_time=start_t,
+                            end_time=end_t,
+                        )
+                        db.session.add(schedule)
 
                 new_courses.append(course)
                 success_count += 1

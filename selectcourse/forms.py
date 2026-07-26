@@ -119,6 +119,7 @@ COLUMN_MAP = {
     "day_of_week": "day_of_week", "上课日": "day_of_week",
     "start_time": "start_time", "开始时间": "start_time",
     "end_time": "end_time", "结束时间": "end_time",
+    "schedules": "schedules", "排课数据": "schedules", "时间段": "schedules",
 }
 
 REQUIRED_FIELDS = ["name", "code", "teacher", "credits", "capacity", "semester"]
@@ -178,6 +179,42 @@ def _validate_row(row: dict, row_index: int) -> list[str]:
         errors.append(f"第 {row_index} 行有开始时间但缺少结束时间")
     if end_t and not start_t:
         errors.append(f"第 {row_index} 行有结束时间但缺少开始时间")
+
+    # 验证多时间段 JSON
+    schedules_raw = row.get("schedules", "").strip()
+    if schedules_raw:
+        try:
+            schedules_data = json.loads(schedules_raw)
+            if not isinstance(schedules_data, list) or len(schedules_data) == 0:
+                errors.append(f"第 {row_index} 行 schedules 字段须为有效的 JSON 数组")
+            else:
+                for si, s in enumerate(schedules_data):
+                    d = s.get("day_of_week")
+                    st = str(s.get("start_time", "")).strip()
+                    et = str(s.get("end_time", "")).strip()
+                    try:
+                        d = int(d)
+                    except (ValueError, TypeError):
+                        errors.append(f"第 {row_index} 行第 {si+1} 个时间段上课日无效")
+                        continue
+                    if d < 0 or d > 6:
+                        errors.append(f"第 {row_index} 行第 {si+1} 个时间段上课日须为 0~6")
+                    if not st or not et:
+                        errors.append(f"第 {row_index} 行第 {si+1} 个时间段缺少开始或结束时间")
+                    row[f"_schedules_{si}"] = {"day_of_week": d, "start_time": st, "end_time": et}
+                if not errors:
+                    from selectcourse.models.course import CourseSchedule
+                    norm_schedules = [
+                        {"day_of_week": int(s["day_of_week"]),
+                         "start_time": str(s.get("start_time", "")).strip(),
+                         "end_time": str(s.get("end_time", "")).strip()}
+                        for s in schedules_data
+                    ]
+                    has_overlap, overlap_msg = CourseSchedule.has_overlap(norm_schedules)
+                    if has_overlap:
+                        errors.append(f"第 {row_index} 行时间段冲突：{overlap_msg}")
+        except json.JSONDecodeError:
+            errors.append(f"第 {row_index} 行 schedules 字段 JSON 格式无效")
 
     return errors
 
