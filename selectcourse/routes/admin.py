@@ -57,6 +57,20 @@ def manage_courses():
 def create_course():
     form = CourseForm()
     if form.validate_on_submit():
+        # 检查课程编号唯一性
+        existing = Course.query.filter_by(code=form.code.data).first()
+        if existing:
+            flash(f"课程编号「{form.code.data}」已存在。", "danger")
+            return render_template("admin/create_course.html", form=form)
+
+        # 解析并验证时间段
+        schedules_data = form.parse_schedules()
+        if schedules_data:
+            has_overlap, error_msg = CourseSchedule.has_overlap(schedules_data)
+            if has_overlap:
+                flash(f"上课时间段冲突：{error_msg}", "danger")
+                return render_template("admin/create_course.html", form=form)
+
         course = Course(
             name=form.name.data,
             code=form.code.data,
@@ -70,13 +84,13 @@ def create_course():
         db.session.add(course)
         db.session.flush()  # 获取 course.id
 
-        # 添加排课记录
-        if form.day_of_week.data is not None and form.start_time.data and form.end_time.data:
+        # 添加多条排课记录
+        for s in schedules_data:
             schedule = CourseSchedule(
                 course_id=course.id,
-                day_of_week=form.day_of_week.data,
-                start_time=form.start_time.data,
-                end_time=form.end_time.data,
+                day_of_week=s["day_of_week"],
+                start_time=s["start_time"],
+                end_time=s["end_time"],
             )
             db.session.add(schedule)
 
@@ -96,26 +110,36 @@ def edit_course(course_id: int):
         return redirect(url_for("admin.manage_courses"))
 
     form = CourseForm(obj=course)
-    # 预填排课信息
-    if course.schedules:
-        s = course.schedules[0]
-        form.day_of_week.data = s.day_of_week
-        form.start_time.data = s.start_time
-        form.end_time.data = s.end_time
 
     if form.validate_on_submit():
+        # 检查课程编号唯一性（排除自身）
+        existing = Course.query.filter(
+            Course.code == form.code.data, Course.id != course.id
+        ).first()
+        if existing:
+            flash(f"课程编号「{form.code.data}」已被其他课程使用。", "danger")
+            return render_template("admin/edit_course.html", form=form, course=course)
+
+        # 解析并验证时间段
+        schedules_data = form.parse_schedules()
+        if schedules_data:
+            has_overlap, error_msg = CourseSchedule.has_overlap(schedules_data)
+            if has_overlap:
+                flash(f"上课时间段冲突：{error_msg}", "danger")
+                return render_template("admin/edit_course.html", form=form, course=course)
+
         form.populate_obj(course)
         course.location = course.location or ""
         course.description = course.description or ""
 
-        # 更新排课
+        # 更新排课：先清空再重建
         CourseSchedule.query.filter_by(course_id=course.id).delete()
-        if form.day_of_week.data is not None and form.start_time.data and form.end_time.data:
+        for s in schedules_data:
             schedule = CourseSchedule(
                 course_id=course.id,
-                day_of_week=form.day_of_week.data,
-                start_time=form.start_time.data,
-                end_time=form.end_time.data,
+                day_of_week=s["day_of_week"],
+                start_time=s["start_time"],
+                end_time=s["end_time"],
             )
             db.session.add(schedule)
 

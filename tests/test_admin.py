@@ -40,9 +40,9 @@ class TestAdminCourseManagement:
             "semester": "2026-秋季",
             "location": "教学楼C-101",
             "description": "测试课程",
-            "day_of_week": 3,
-            "start_time": "10:00",
-            "end_time": "11:40",
+            "schedules_json": json.dumps([
+                {"day_of_week": 3, "start_time": "10:00", "end_time": "11:40"},
+            ]),
         }, follow_redirects=True)
         assert response.status_code == 200
         assert "创建成功" in response.get_data(as_text=True)
@@ -51,6 +51,65 @@ class TestAdminCourseManagement:
         course = Course.query.filter_by(code="NEW101").first()
         assert course is not None
         assert len(course.schedules) == 1
+
+    def test_create_course_multi_schedule(self, login_admin):
+        """创建包含多个时间段的课程"""
+        response = login_admin.post("/admin/courses/create", data={
+            "name": "多时间段课程",
+            "code": "MULTI101",
+            "teacher": "李教授",
+            "credits": 3.0,
+            "capacity": 60,
+            "semester": "2026-秋季",
+            "location": "教学楼E-101",
+            "schedules_json": json.dumps([
+                {"day_of_week": 0, "start_time": "08:00", "end_time": "09:40"},
+                {"day_of_week": 2, "start_time": "10:00", "end_time": "11:40"},
+            ]),
+        }, follow_redirects=True)
+        assert response.status_code == 200
+        assert "创建成功" in response.get_data(as_text=True)
+
+        from selectcourse.models.course import Course
+        course = Course.query.filter_by(code="MULTI101").first()
+        assert course is not None
+        assert len(course.schedules) == 2
+
+    def test_create_course_schedule_overlap(self, login_admin):
+        """创建课程时时间段重合应被拒绝"""
+        response = login_admin.post("/admin/courses/create", data={
+            "name": "冲突课程",
+            "code": "CONFLICT",
+            "teacher": "张教授",
+            "credits": 2.0,
+            "capacity": 50,
+            "semester": "2026-秋季",
+            "schedules_json": json.dumps([
+                {"day_of_week": 1, "start_time": "08:00", "end_time": "10:00"},
+                {"day_of_week": 1, "start_time": "09:00", "end_time": "11:00"},
+            ]),
+        }, follow_redirects=True)
+        assert response.status_code == 200
+        assert "时间段冲突" in response.get_data(as_text=True)
+
+        from selectcourse.models.course import Course
+        assert Course.query.filter_by(code="CONFLICT").first() is None
+
+    def test_create_course_invalid_schedule_time(self, login_admin):
+        """创建课程时结束时间不晚于开始时间应被拒绝"""
+        response = login_admin.post("/admin/courses/create", data={
+            "name": "错误时间课程",
+            "code": "BADTIME",
+            "teacher": "王教授",
+            "credits": 2.0,
+            "capacity": 50,
+            "semester": "2026-秋季",
+            "schedules_json": json.dumps([
+                {"day_of_week": 1, "start_time": "10:00", "end_time": "08:00"},
+            ]),
+        }, follow_redirects=True)
+        assert response.status_code == 200
+        assert "时间段冲突" in response.get_data(as_text=True)
 
     def test_edit_course(self, login_admin, sample_course):
         response = login_admin.post(f"/admin/courses/{sample_course.id}/edit", data={
@@ -62,9 +121,9 @@ class TestAdminCourseManagement:
             "semester": "2026-秋季",
             "location": "教学楼A-301",
             "description": "更新后的描述",
-            "day_of_week": 1,
-            "start_time": "08:00",
-            "end_time": "09:40",
+            "schedules_json": json.dumps([
+                {"day_of_week": 1, "start_time": "08:00", "end_time": "09:40"},
+            ]),
         }, follow_redirects=True)
         assert response.status_code == 200
         assert "更新成功" in response.get_data(as_text=True)

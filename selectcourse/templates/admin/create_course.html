@@ -49,20 +49,13 @@
             {{ form.description.label }}
             {{ form.description(class="form-control", rows="3", placeholder="课程简介...") }}
         </div>
-        <h3>⏰ 排课信息（可选）</h3>
-        <div class="form-row">
-            <div class="form-group">
-                {{ form.day_of_week.label }}
-                {{ form.day_of_week(class="form-control") }}
-            </div>
-            <div class="form-group">
-                {{ form.start_time.label }}
-                {{ form.start_time(class="form-control", placeholder="08:00") }}
-            </div>
-            <div class="form-group">
-                {{ form.end_time.label }}
-                {{ form.end_time(class="form-control", placeholder="09:40") }}
-            </div>
+        <h3>⏰ 排课信息（可选，支持多个时间段）</h3>
+        {{ form.schedules_json() }}
+        <div id="schedule-container">
+            <!-- 动态生成的时间段行 -->
+        </div>
+        <div style="margin-bottom: 16px;">
+            <button type="button" class="btn btn-sm btn-secondary" id="add-schedule-btn">➕ 添加时间段</button>
         </div>
         <div class="form-actions">
             <a href="{{ url_for('admin.manage_courses') }}" class="btn btn-secondary">取消</a>
@@ -70,4 +63,77 @@
         </div>
     </form>
 </div>
+
+<script>
+(function() {
+    const DAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+    const container = document.getElementById('schedule-container');
+    const hiddenInput = document.querySelector('input[name="schedules_json"]');
+    let scheduleIndex = 0;
+
+    function createScheduleRow(day, start, end) {
+        const idx = scheduleIndex++;
+        const row = document.createElement('div');
+        row.className = 'schedule-row';
+        row.innerHTML = `
+            <div class="schedule-field">
+                <select class="form-control schedule-day">
+                    <option value="">选择星期</option>
+                    ${DAYS.map((d, i) => `<option value="${i}" ${i === day ? 'selected' : ''}>${d}</option>`).join('')}
+                </select>
+            </div>
+            <div class="schedule-field">
+                <input type="text" class="form-control schedule-start" placeholder="08:00" value="${start || ''}" maxlength="5">
+            </div>
+            <div class="schedule-field schedule-field-sep">
+                <span>—</span>
+            </div>
+            <div class="schedule-field">
+                <input type="text" class="form-control schedule-end" placeholder="09:40" value="${end || ''}" maxlength="5">
+            </div>
+            <div class="schedule-field">
+                <button type="button" class="btn btn-sm btn-danger remove-schedule-btn" title="移除此时间段">✕</button>
+            </div>
+        `;
+        // 移除事件
+        row.querySelector('.remove-schedule-btn').addEventListener('click', function() {
+            row.remove();
+            updateHiddenField();
+        });
+        // 数据变更时更新隐藏域
+        row.querySelectorAll('select, input').forEach(el => {
+            el.addEventListener('change', updateHiddenField);
+            el.addEventListener('input', updateHiddenField);
+        });
+        container.appendChild(row);
+        return row;
+    }
+
+    function updateHiddenField() {
+        const schedules = [];
+        container.querySelectorAll('.schedule-row').forEach(row => {
+            const day = row.querySelector('.schedule-day').value;
+            const start = row.querySelector('.schedule-start').value.trim();
+            const end = row.querySelector('.schedule-end').value.trim();
+            if (day !== '' && start && end) {
+                schedules.push({ day_of_week: parseInt(day), start_time: start, end_time: end });
+            }
+        });
+        hiddenInput.value = schedules.length > 0 ? JSON.stringify(schedules) : '';
+    }
+
+    // 添加按钮
+    document.getElementById('add-schedule-btn').addEventListener('click', function() {
+        createScheduleRow(null, '', '');
+    });
+
+    // 表单提交前确保隐藏域已更新
+    document.querySelector('form').addEventListener('submit', function() {
+        updateHiddenField();
+    });
+
+    // 默认显示一个时间段行
+    createScheduleRow(null, '', '');
+})();
+</script>
 {% endblock %}

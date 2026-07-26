@@ -1,6 +1,6 @@
 """课程与选课测试"""
 import pytest
-from selectcourse.models.course import Course
+from selectcourse.models.course import Course, CourseSchedule
 from selectcourse.models.selection import Selection
 
 
@@ -183,6 +183,75 @@ class TestTimeConflict:
         db.session.commit()
 
         assert Selection.has_time_conflict(student_user.id, course.id) is False
+
+
+class TestScheduleOverlap:
+    """时间段重合检测测试"""
+
+    def test_no_overlap_different_days(self):
+        """不同天不重合"""
+        has_overlap, msg = CourseSchedule.has_overlap([
+            {"day_of_week": 0, "start_time": "08:00", "end_time": "09:40"},
+            {"day_of_week": 2, "start_time": "08:00", "end_time": "09:40"},
+        ])
+        assert has_overlap is False
+        assert msg is None
+
+    def test_no_overlap_same_day_non_overlapping(self):
+        """同天不重合时间段"""
+        has_overlap, msg = CourseSchedule.has_overlap([
+            {"day_of_week": 1, "start_time": "08:00", "end_time": "09:40"},
+            {"day_of_week": 1, "start_time": "10:00", "end_time": "11:40"},
+        ])
+        assert has_overlap is False
+
+    def test_no_overlap_adjacent(self):
+        """同天紧邻时间段（不重合）"""
+        has_overlap, msg = CourseSchedule.has_overlap([
+            {"day_of_week": 1, "start_time": "08:00", "end_time": "09:40"},
+            {"day_of_week": 1, "start_time": "09:40", "end_time": "11:20"},
+        ])
+        assert has_overlap is False
+
+    def test_overlap_same_day_partial(self):
+        """同天部分重合"""
+        has_overlap, msg = CourseSchedule.has_overlap([
+            {"day_of_week": 1, "start_time": "08:00", "end_time": "10:00"},
+            {"day_of_week": 1, "start_time": "09:00", "end_time": "11:00"},
+        ])
+        assert has_overlap is True
+        assert "重合" in msg
+
+    def test_overlap_same_day_contained(self):
+        """同天完全包含"""
+        has_overlap, msg = CourseSchedule.has_overlap([
+            {"day_of_week": 1, "start_time": "08:00", "end_time": "12:00"},
+            {"day_of_week": 1, "start_time": "09:00", "end_time": "10:00"},
+        ])
+        assert has_overlap is True
+
+    def test_invalid_end_before_start(self):
+        """结束时间早于开始时间"""
+        has_overlap, msg = CourseSchedule.has_overlap([
+            {"day_of_week": 1, "start_time": "10:00", "end_time": "08:00"},
+        ])
+        assert has_overlap is True
+        assert "结束时间必须晚于开始时间" in msg
+
+    def test_multiple_schedules_no_overlap(self):
+        """三个时间段无重合"""
+        has_overlap, msg = CourseSchedule.has_overlap([
+            {"day_of_week": 0, "start_time": "08:00", "end_time": "09:40"},
+            {"day_of_week": 2, "start_time": "10:00", "end_time": "11:40"},
+            {"day_of_week": 4, "start_time": "14:00", "end_time": "15:40"},
+        ])
+        assert has_overlap is False
+
+    def test_empty_schedules(self):
+        """空列表不报错"""
+        has_overlap, msg = CourseSchedule.has_overlap([])
+        assert has_overlap is False
+        assert msg is None
 
 
 class TestMyCourses:

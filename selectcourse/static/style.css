@@ -654,6 +654,42 @@ main.container {
     flex-wrap: wrap;
 }
 
+/* --- 排课时间段 --- */
+.schedule-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.schedule-field {
+    flex: 1;
+}
+
+.schedule-field:first-child {
+    flex: 1.4;
+}
+
+.schedule-field:last-child {
+    flex: 0 0 42px;
+}
+
+.schedule-field-sep {
+    flex: 0 0 20px;
+    text-align: center;
+    color: var(--gray-500);
+    font-weight: 500;
+}
+
+.schedule-row .form-control {
+    padding: 8px 10px;
+    font-size: 0.875rem;
+}
+
+.schedule-row .btn-sm {
+    padding: 6px 10px;
+}
+
 /* --- 响应式 --- */
 @media (max-width: 640px) {
     .hero h1 {

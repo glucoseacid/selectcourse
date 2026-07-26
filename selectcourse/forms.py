@@ -5,7 +5,7 @@ import json
 import logging
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileRequired, FileAllowed
-from wtforms import StringField, PasswordField, SelectField, FloatField, IntegerField, TextAreaField, SubmitField
+from wtforms import StringField, PasswordField, SelectField, FloatField, IntegerField, TextAreaField, SubmitField, HiddenField
 from wtforms.validators import DataRequired, Email, Length, EqualTo, NumberRange, Optional
 
 logger = logging.getLogger(__name__)
@@ -59,19 +59,34 @@ class CourseForm(FlaskForm):
     location = StringField("上课地点", validators=[Optional()])
     description = TextAreaField("课程描述", validators=[Optional()])
 
-    # 排课字段（简化为每日一条）
-    day_of_week = SelectField(
-        "上课日",
-        choices=[
-            (0, "周一"), (1, "周二"), (2, "周三"),
-            (3, "周四"), (4, "周五"), (5, "周六"), (6, "周日"),
-        ],
-        coerce=int,
-        validators=[Optional()],
-    )
-    start_time = StringField("开始时间 (HH:MM)", validators=[Optional()])
-    end_time = StringField("结束时间 (HH:MM)", validators=[Optional()])
+    # 多时间段：前端用 JSON 序列化后填入隐藏域
+    schedules_json = HiddenField("排课数据", validators=[Optional()])
     submit = SubmitField("保存")
+
+    def parse_schedules(self) -> list[dict]:
+        """解析 schedules_json 字段，返回时间段列表。"""
+        raw = (self.schedules_json.data or "").strip()
+        if not raw:
+            return []
+        try:
+            data = json.loads(raw)
+            if not isinstance(data, list):
+                return []
+            schedules = []
+            for item in data:
+                day = item.get("day_of_week")
+                start = item.get("start_time", "").strip()
+                end = item.get("end_time", "").strip()
+                if day is None or not start or not end:
+                    continue
+                schedules.append({
+                    "day_of_week": int(day),
+                    "start_time": start,
+                    "end_time": end,
+                })
+            return schedules
+        except (json.JSONDecodeError, ValueError, TypeError):
+            return []
 
 
 class CourseImportForm(FlaskForm):

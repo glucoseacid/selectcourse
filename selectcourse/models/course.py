@@ -56,6 +56,45 @@ class CourseSchedule(db.Model):
 
     course = db.relationship("Course", back_populates="schedules")
 
+    @staticmethod
+    def _time_to_minutes(time_str: str) -> int:
+        """将 HH:MM 字符串转换为分钟数"""
+        parts = time_str.strip().split(":")
+        return int(parts[0]) * 60 + int(parts[1])
+
+    @classmethod
+    def has_overlap(cls, schedules: list[dict]) -> tuple[bool, str | None]:
+        """检查多个时间段是否存在重合。
+        
+        Args:
+            schedules: 时间段列表，每项含 day_of_week, start_time, end_time
+        
+        Returns:
+            (has_overlap, error_message) — 无重合时返回 (False, None)
+        """
+        for i, s1 in enumerate(schedules):
+            d1 = int(s1["day_of_week"])
+            t1_start = cls._time_to_minutes(s1["start_time"])
+            t1_end = cls._time_to_minutes(s1["end_time"])
+            if t1_end <= t1_start:
+                days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+                return True, f"{days[d1]} {s1['start_time']}-{s1['end_time']} 结束时间必须晚于开始时间"
+            for j in range(i + 1, len(schedules)):
+                s2 = schedules[j]
+                d2 = int(s2["day_of_week"])
+                if d1 != d2:
+                    continue
+                t2_start = cls._time_to_minutes(s2["start_time"])
+                t2_end = cls._time_to_minutes(s2["end_time"])
+                # 时间段重叠检测：不重合的条件是 A结束<=B开始 或 B结束<=A开始
+                if t1_start < t2_end and t2_start < t1_end:
+                    days_label = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+                    return True, (
+                        f"{days_label[d1]} {s1['start_time']}-{s1['end_time']} "
+                        f"与 {s2['start_time']}-{s2['end_time']} 时间段重合"
+                    )
+        return False, None
+
     def __repr__(self) -> str:
         days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
         return f"<Schedule {days[self.day_of_week]} {self.start_time}-{self.end_time}>"
