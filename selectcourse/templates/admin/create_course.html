@@ -51,6 +51,14 @@
         </div>
         <h3>⏰ 排课信息（可选，支持多个时间段）</h3>
         {{ form.schedules_json() }}
+        <!-- 表头提示 -->
+        <div class="schedule-row schedule-header">
+            <div class="schedule-field"><span class="schedule-label">上课日</span></div>
+            <div class="schedule-field"><span class="schedule-label">开始时间</span></div>
+            <div class="schedule-field schedule-field-sep"></div>
+            <div class="schedule-field"><span class="schedule-label">结束时间</span></div>
+            <div class="schedule-field"></div>
+        </div>
         <div id="schedule-container">
             <!-- 动态生成的时间段行 -->
         </div>
@@ -67,9 +75,51 @@
 <script>
 (function() {
     const DAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+    const VALID_HOURS = new Set(Array.from({length: 14}, (_, i) => String(i + 8).padStart(2, '0')));
+    const isValidMinute = (m) => /^\d{1,2}$/.test(m) && parseInt(m, 10) >= 0 && parseInt(m, 10) <= 59;
+
     const container = document.getElementById('schedule-container');
     const hiddenInput = document.querySelector('input[name="schedules_json"]');
     let scheduleIndex = 0;
+
+    function buildTimeWheel(classBase, selectedTime) {
+        let selH = '', selM = '';
+        if (selectedTime) {
+            const parts = selectedTime.split(':');
+            selH = parts[0] || '';
+            selM = parts[1] || '';
+        }
+        return `
+            <div class="time-wheel">
+                <input type="text" class="form-control ${classBase}-hour"
+                    maxlength="2" placeholder="08" inputmode="numeric"
+                    value="${selH}" autocomplete="off">
+                <span class="time-wheel-colon">:</span>
+                <input type="text" class="form-control ${classBase}-min"
+                    maxlength="2" placeholder="00" inputmode="numeric"
+                    value="${selM}" autocomplete="off">
+            </div>`;
+    }
+
+    function validateTimeInput(hourEl, minEl) {
+        let valid = true;
+        const h = hourEl.value.trim();
+        const m = minEl.value.trim();
+
+        if (h && !VALID_HOURS.has(h.padStart(2, '0'))) {
+            hourEl.classList.add('time-invalid');
+            valid = false;
+        } else {
+            hourEl.classList.remove('time-invalid');
+        }
+        if (m && !isValidMinute(m)) {
+            minEl.classList.add('time-invalid');
+            valid = false;
+        } else {
+            minEl.classList.remove('time-invalid');
+        }
+        return valid;
+    }
 
     function createScheduleRow(day, start, end) {
         const idx = scheduleIndex++;
@@ -83,27 +133,41 @@
                 </select>
             </div>
             <div class="schedule-field">
-                <input type="text" class="form-control schedule-start" placeholder="08:00" value="${start || ''}" maxlength="5">
+                ${buildTimeWheel('schedule-start', start || '')}
             </div>
             <div class="schedule-field schedule-field-sep">
                 <span>—</span>
             </div>
             <div class="schedule-field">
-                <input type="text" class="form-control schedule-end" placeholder="09:40" value="${end || ''}" maxlength="5">
+                ${buildTimeWheel('schedule-end', end || '')}
             </div>
             <div class="schedule-field">
                 <button type="button" class="btn btn-sm btn-danger remove-schedule-btn" title="移除此时间段">✕</button>
             </div>
         `;
-        // 移除事件
         row.querySelector('.remove-schedule-btn').addEventListener('click', function() {
             row.remove();
             updateHiddenField();
         });
-        // 数据变更时更新隐藏域
-        row.querySelectorAll('select, input').forEach(el => {
-            el.addEventListener('change', updateHiddenField);
+        // 星期下拉框变更
+        row.querySelector('.schedule-day').addEventListener('change', updateHiddenField);
+        // 时间输入框变更 + 失焦时自动补零和校验
+        const startH = row.querySelector('.schedule-start-hour');
+        const startM = row.querySelector('.schedule-start-min');
+        const endH = row.querySelector('.schedule-end-hour');
+        const endM = row.querySelector('.schedule-end-min');
+        [startH, startM, endH, endM].forEach(el => {
             el.addEventListener('input', updateHiddenField);
+            el.addEventListener('blur', function() {
+                // 自动补零：单个数字补为 0X
+                const v = el.value.trim();
+                if (/^\d$/.test(v)) {
+                    el.value = '0' + v;
+                }
+                validateTimeInput(startH, startM);
+                validateTimeInput(endH, endM);
+                updateHiddenField();
+            });
         });
         container.appendChild(row);
         return row;
@@ -113,8 +177,12 @@
         const schedules = [];
         container.querySelectorAll('.schedule-row').forEach(row => {
             const day = row.querySelector('.schedule-day').value;
-            const start = row.querySelector('.schedule-start').value.trim();
-            const end = row.querySelector('.schedule-end').value.trim();
+            const startH = row.querySelector('.schedule-start-hour').value.trim();
+            const startM = row.querySelector('.schedule-start-min').value.trim();
+            const endH = row.querySelector('.schedule-end-hour').value.trim();
+            const endM = row.querySelector('.schedule-end-min').value.trim();
+            const start = startH && startM ? startH.padStart(2, '0') + ':' + startM.padStart(2, '0') : '';
+            const end = endH && endM ? endH.padStart(2, '0') + ':' + endM.padStart(2, '0') : '';
             if (day !== '' && start && end) {
                 schedules.push({ day_of_week: parseInt(day), start_time: start, end_time: end });
             }
@@ -122,17 +190,28 @@
         hiddenInput.value = schedules.length > 0 ? JSON.stringify(schedules) : '';
     }
 
-    // 添加按钮
     document.getElementById('add-schedule-btn').addEventListener('click', function() {
         createScheduleRow(null, '', '');
     });
 
-    // 表单提交前确保隐藏域已更新
-    document.querySelector('form').addEventListener('submit', function() {
+    document.querySelector('form').addEventListener('submit', function(e) {
+        // 提交前做最终校验
+        let allValid = true;
+        container.querySelectorAll('.schedule-row').forEach(row => {
+            const sh = row.querySelector('.schedule-start-hour');
+            const sm = row.querySelector('.schedule-start-min');
+            const eh = row.querySelector('.schedule-end-hour');
+            const em = row.querySelector('.schedule-end-min');
+            if (!validateTimeInput(sh, sm)) allValid = false;
+            if (!validateTimeInput(eh, em)) allValid = false;
+        });
         updateHiddenField();
+        if (!allValid) {
+            e.preventDefault();
+            alert('部分时间输入无效！小时须为 08~21，分钟须为 0~59。');
+        }
     });
 
-    // 默认显示一个时间段行
     createScheduleRow(null, '', '');
 })();
 </script>

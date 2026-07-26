@@ -655,6 +655,16 @@ main.container {
 }
 
 /* --- 排课时间段 --- */
+.schedule-header {
+    margin-bottom: 4px;
+}
+
+.schedule-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--gray-500);
+}
+
 .schedule-row {
     display: flex;
     gap: 8px;
@@ -688,6 +698,38 @@ main.container {
 
 .schedule-row .btn-sm {
     padding: 6px 10px;
+}
+
+/* --- 时间轮盘 --- */
+.time-wheel {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.time-wheel .form-control {
+    padding: 8px 4px;
+    text-align: center;
+    min-width: 0;
+}
+
+.time-wheel input:first-child {
+    flex: 1.1;
+}
+
+.time-wheel input:last-child {
+    flex: 1;
+}
+
+.time-invalid {
+    border-color: var(--danger) !important;
+    box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15) !important;
+}
+
+.time-wheel-colon {
+    font-weight: 600;
+    color: var(--gray-500);
+    padding: 0 1px;
 }
 
 /* --- 响应式 --- */
