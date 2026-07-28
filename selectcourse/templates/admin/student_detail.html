@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}学生详情 - {{ student.username }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h2>👨‍🎓 学生详情：{{ student.username }}</h2>
+    <div class="header-actions">
+        <a href="{{ url_for('admin.manage_students') }}" class="btn btn-secondary btn-sm">&laquo; 返回学生列表</a>
+    </div>
+</div>
+
+<div class="detail-card">
+    <div class="detail-row">
+        <span class="detail-label">用户 ID</span>
+        <span class="detail-value">{{ student.id }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">用户名</span>
+        <span class="detail-value">{{ student.username }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">邮箱</span>
+        <span class="detail-value">{{ student.email }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">角色</span>
+        <span class="detail-value"><span class="badge badge-info">{{ student.role }}</span></span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">注册时间</span>
+        <span class="detail-value">{{ student.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">已选课程数</span>
+        <span class="detail-value"><strong>{{ selections|selectattr('status', 'equalto', 'enrolled')|list|length }}</strong> 门</span>
+    </div>
+
+    <div class="detail-actions">
+        <a href="{{ url_for('admin.edit_student', student_id=student.id) }}" class="btn btn-primary btn-sm">✏️ 编辑信息</a>
+        <a href="{{ url_for('admin.change_student_password', student_id=student.id) }}" class="btn btn-secondary btn-sm">🔑 修改密码</a>
+        <form action="{{ url_for('admin.delete_student', student_id=student.id) }}" method="post" style="display:inline;" onsubmit="return confirm('确定要删除学生「{{ student.username }}」及其所有选课记录吗？此操作不可撤销。');">
+            <button type="submit" class="btn btn-danger btn-sm">🗑️ 删除学生</button>
+        </form>
+    </div>
+</div>
+
+<h3>📚 选课记录</h3>
+
+{% if selections %}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>课程编号</th>
+            <th>课程名称</th>
+            <th>授课教师</th>
+            <th>学分</th>
+            <th>状态</th>
+            <th>选课时间</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for sel in selections %}
+        <tr>
+            <td><span class="course-code-badge">{{ sel.course.code }}</span></td>
+            <td>
+                <a href="{{ url_for('course.detail', course_id=sel.course.id) }}">{{ sel.course.name }}</a>
+            </td>
+            <td>{{ sel.course.teacher }}</td>
+            <td>{{ sel.course.credits }}</td>
+            <td>
+                {% if sel.status == 'enrolled' %}
+                <span class="badge badge-success">已选</span>
+                {% else %}
+                <span class="badge badge-secondary">已退</span>
+                {% endif %}
+            </td>
+            <td>{{ sel.enrolled_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td class="actions">
+                <form action="{{ url_for('admin.delete_selection', selection_id=sel.id) }}" method="post" style="display:inline;" onsubmit="return confirm('确定要删除该选课记录吗？');">
+                    <button type="submit" class="btn btn-sm btn-danger">🗑️ 删除记录</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state">
+    <p>📭 该学生暂无选课记录</p>
+</div>
+{% endif %}
+{% endblock %}

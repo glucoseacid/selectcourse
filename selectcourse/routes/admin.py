@@ -11,6 +11,7 @@ from selectcourse.models.category import CourseCategory
 from selectcourse.models.selection import Selection
 from selectcourse.forms import (
     CourseForm, CategoryForm, CourseImportForm, SelectionSearchForm,
+    AdminEditStudentForm, AdminChangePasswordForm,
     parse_import_file, _normalize_row, _validate_row,
 )
 
@@ -337,6 +338,123 @@ def manage_students():
     return render_template(
         "admin/students.html", students=pagination.items, pagination=pagination
     )
+
+
+# ---- 学生详情与管理 ----
+
+
+@admin_bp.route("/students/<int:student_id>")
+@admin_required
+def student_detail(student_id: int):
+    """查看学生详细信息与选课记录。"""
+    student = db.session.get(User, student_id)
+    if student is None or student.role != "student":
+        flash("学生不存在。", "danger")
+        return redirect(url_for("admin.manage_students"))
+
+    selections = (
+        Selection.query
+        .filter_by(student_id=student.id)
+        .join(Course)
+        .order_by(Selection.enrolled_at.desc())
+        .all()
+    )
+
+    return render_template(
+        "admin/student_detail.html",
+        student=student,
+        selections=selections,
+    )
+
+
+@admin_bp.route("/students/<int:student_id>/edit", methods=["GET", "POST"])
+@admin_required
+def edit_student(student_id: int):
+    """管理员修改学生信息（用户名、邮箱）。"""
+    student = db.session.get(User, student_id)
+    if student is None or student.role != "student":
+        flash("学生不存在。", "danger")
+        return redirect(url_for("admin.manage_students"))
+
+    form = AdminEditStudentForm()
+    if request.method == "GET":
+        form.username.data = student.username
+        form.email.data = student.email
+
+    if form.validate_on_submit():
+        # 检查用户名唯一性（排除自身）
+        existing_user = User.query.filter(
+            User.username == form.username.data,
+            User.id != student.id,
+        ).first()
+        if existing_user:
+            flash(f"用户名「{form.username.data}」已被使用。", "danger")
+            return render_template("admin/edit_student.html", form=form, student=student)
+
+        # 检查邮箱唯一性（排除自身）
+        existing_email = User.query.filter(
+            User.email == form.email.data,
+            User.id != student.id,
+        ).first()
+        if existing_email:
+            flash(f"邮箱「{form.email.data}」已被使用。", "danger")
+            return render_template("admin/edit_student.html", form=form, student=student)
+
+        student.username = form.username.data
+        student.email = form.email.data
+        db.session.commit()
+        logger.info("Admin updated student %d: username=%s, email=%s", student.id, student.username, student.email)
+        flash(f"学生「{student.username}」信息已更新。", "success")
+        return redirect(url_for("admin.student_detail", student_id=student.id))
+
+    return render_template("admin/edit_student.html", form=form, student=student)
+
+
+@admin_bp.route("/students/<int:student_id>/change-password", methods=["GET", "POST"])
+@admin_required
+def change_student_password(student_id: int):
+    """管理员修改学生密码。"""
+    student = db.session.get(User, student_id)
+    if student is None or student.role != "student":
+        flash("学生不存在。", "danger")
+        return redirect(url_for("admin.manage_students"))
+
+    form = AdminChangePasswordForm()
+    if form.validate_on_submit():
+        student.set_password(form.new_password.data)
+        db.session.commit()
+        logger.info("Admin changed password for student %d (%s)", student.id, student.username)
+        flash(f"学生「{student.username}」的密码已修改。", "success")
+        return redirect(url_for("admin.student_detail", student_id=student.id))
+
+    return render_template("admin/change_password.html", form=form, student=student)
+
+
+@admin_bp.route("/students/<int:student_id>/delete", methods=["POST"])
+@admin_required
+def delete_student(student_id: int):
+    """管理员删除学生（同时删除其所有选课记录）。"""
+    student = db.session.get(User, student_id)
+    if student is None or student.role != "student":
+        flash("学生不存在。", "danger")
+        return redirect(url_for("admin.manage_students"))
+
+    username = student.username
+
+    # 删除该学生的所有选课记录，并更新课程已选人数
+    selections = Selection.query.filter_by(student_id=student.id).all()
+    for sel in selections:
+        if sel.status == "enrolled":
+            course = sel.course
+            if course and course.enrolled_count > 0:
+                course.enrolled_count -= 1
+        db.session.delete(sel)
+
+    db.session.delete(student)
+    db.session.commit()
+    logger.info("Admin deleted student %d (%s) and all their selections", student.id, username)
+    flash(f"学生「{username}」及其所有选课记录已删除。", "info")
+    return redirect(url_for("admin.manage_students"))
 
 
 # ---- 课程分类管理 ----

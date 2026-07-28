@@ -148,6 +148,234 @@ class TestAdminStudentManagement:
         assert response.status_code == 200
         assert "teststudent" in response.get_data(as_text=True)
 
+    def test_manage_students_page_has_action_buttons(self, login_admin, student_user):
+        """学生列表页面包含操作按钮"""
+        response = login_admin.get("/admin/students")
+        html = response.get_data(as_text=True)
+        assert "查看详情" in html or "📋" in html
+        assert "编辑信息" in html or "✏️" in html
+        assert "修改密码" in html or "🔑" in html
+
+    # ---- 学生详情 ----
+
+    def test_student_detail_page(self, login_admin, student_user):
+        """查看学生详情页面"""
+        response = login_admin.get(f"/admin/students/{student_user.id}")
+        assert response.status_code == 200
+        html = response.get_data(as_text=True)
+        assert "teststudent" in html
+        assert "student@test.edu" in html
+
+    def test_student_detail_shows_selections(self, login_admin, enrolled_student, sample_course):
+        """学生详情页显示选课记录"""
+        response = login_admin.get(f"/admin/students/{enrolled_student.id}")
+        assert response.status_code == 200
+        html = response.get_data(as_text=True)
+        assert sample_course.name in html
+
+    def test_student_detail_not_found(self, login_admin):
+        """查看不存在的学生返回列表"""
+        response = login_admin.get("/admin/students/99999", follow_redirects=True)
+        assert response.status_code == 200
+        assert "不存在" in response.get_data(as_text=True)
+
+    def test_student_detail_not_student_role(self, login_admin, admin_user):
+        """查看管理员角色的用户应重定向"""
+        response = login_admin.get(f"/admin/students/{admin_user.id}", follow_redirects=True)
+        assert response.status_code == 200
+        assert "不存在" in response.get_data(as_text=True)
+
+    def test_student_detail_unauthorized(self, client, student_user):
+        """非管理员无法查看学生详情"""
+        client.post("/auth/login", data={
+            "username": "teststudent",
+            "password": "password123",
+        })
+        response = client.get(f"/admin/students/{student_user.id}", follow_redirects=True)
+        assert "需要管理员权限" in response.get_data(as_text=True)
+
+    # ---- 编辑学生信息 ----
+
+    def test_edit_student_page(self, login_admin, student_user):
+        """编辑学生信息页面"""
+        response = login_admin.get(f"/admin/students/{student_user.id}/edit")
+        assert response.status_code == 200
+        html = response.get_data(as_text=True)
+        assert "teststudent" in html
+        assert "student@test.edu" in html
+
+    def test_edit_student_success(self, login_admin, student_user):
+        """成功修改学生信息"""
+        response = login_admin.post(
+            f"/admin/students/{student_user.id}/edit",
+            data={
+                "username": "updatedstudent",
+                "email": "updated@test.edu",
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "已更新" in response.get_data(as_text=True)
+
+        from selectcourse.models.user import User
+        u = User.query.get(student_user.id)
+        assert u.username == "updatedstudent"
+        assert u.email == "updated@test.edu"
+
+    def test_edit_student_duplicate_username(self, login_admin, student_user, db):
+        """修改为已存在的用户名应报错"""
+        # 创建第二个学生
+        other = User(username="otherstudent", email="other@test.edu", role="student")
+        other.set_password("pass123")
+        db.session.add(other)
+        db.session.commit()
+
+        response = login_admin.post(
+            f"/admin/students/{student_user.id}/edit",
+            data={
+                "username": "otherstudent",
+                "email": "student@test.edu",
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "已被使用" in response.get_data(as_text=True)
+
+    def test_edit_student_duplicate_email(self, login_admin, student_user, db):
+        """修改为已存在的邮箱应报错"""
+        other = User(username="otherstudent", email="other@test.edu", role="student")
+        other.set_password("pass123")
+        db.session.add(other)
+        db.session.commit()
+
+        response = login_admin.post(
+            f"/admin/students/{student_user.id}/edit",
+            data={
+                "username": "teststudent",
+                "email": "other@test.edu",
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "已被使用" in response.get_data(as_text=True)
+
+    def test_edit_student_not_found(self, login_admin):
+        """编辑不存在学生"""
+        response = login_admin.get("/admin/students/99999/edit", follow_redirects=True)
+        assert response.status_code == 200
+        assert "不存在" in response.get_data(as_text=True)
+
+    # ---- 修改学生密码 ----
+
+    def test_change_password_page(self, login_admin, student_user):
+        """修改密码页面"""
+        response = login_admin.get(f"/admin/students/{student_user.id}/change-password")
+        assert response.status_code == 200
+        html = response.get_data(as_text=True)
+        assert "修改密码" in html or "新密码" in html
+
+    def test_change_password_success(self, login_admin, student_user, client):
+        """成功修改学生密码"""
+        response = login_admin.post(
+            f"/admin/students/{student_user.id}/change-password",
+            data={
+                "new_password": "newpass123",
+                "confirm_password": "newpass123",
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "密码已修改" in response.get_data(as_text=True)
+
+        # 验证新密码可登录
+        client.get("/auth/logout")
+        login_resp = client.post("/auth/login", data={
+            "username": "teststudent",
+            "password": "newpass123",
+        }, follow_redirects=True)
+        assert "teststudent" in login_resp.get_data(as_text=True)
+
+    def test_change_password_mismatch(self, login_admin, student_user):
+        """两次密码不一致应报错"""
+        response = login_admin.post(
+            f"/admin/students/{student_user.id}/change-password",
+            data={
+                "new_password": "newpass123",
+                "confirm_password": "different456",
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "不一致" in response.get_data(as_text=True) or "错误" in response.get_data(as_text=True)
+
+    def test_change_password_too_short(self, login_admin, student_user):
+        """密码太短应报错"""
+        response = login_admin.post(
+            f"/admin/students/{student_user.id}/change-password",
+            data={
+                "new_password": "12345",
+                "confirm_password": "12345",
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "6" in response.get_data(as_text=True) or "错误" in response.get_data(as_text=True)
+
+    # ---- 删除学生 ----
+
+    def test_delete_student_success(self, login_admin, student_user):
+        """成功删除学生"""
+        response = login_admin.post(
+            f"/admin/students/{student_user.id}/delete",
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "已删除" in response.get_data(as_text=True)
+
+        from selectcourse.models.user import User
+        assert User.query.get(student_user.id) is None
+
+    def test_delete_student_clears_selections(self, login_admin, enrolled_student, sample_course):
+        """删除学生同时清除其选课记录并恢复课程容量"""
+        sid = enrolled_student.id
+        assert sample_course.enrolled_count == 1
+
+        response = login_admin.post(
+            f"/admin/students/{sid}/delete",
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+
+        from selectcourse.models.user import User
+        from selectcourse.models.selection import Selection
+        from selectcourse.models.course import Course
+
+        assert User.query.get(sid) is None
+        assert Selection.query.filter_by(student_id=sid).count() == 0
+        course = Course.query.get(sample_course.id)
+        assert course.enrolled_count == 0
+
+    def test_delete_student_not_found(self, login_admin):
+        """删除不存在学生"""
+        response = login_admin.post(
+            "/admin/students/99999/delete",
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "不存在" in response.get_data(as_text=True)
+
+    def test_delete_student_unauthorized(self, client, student_user):
+        """非管理员不能删除学生"""
+        client.post("/auth/login", data={
+            "username": "teststudent",
+            "password": "password123",
+        })
+        response = client.post(
+            f"/admin/students/{student_user.id}/delete",
+            follow_redirects=True,
+        )
+        assert "需要管理员权限" in response.get_data(as_text=True)
+
 
 class TestAdminCourseImport:
     """管理员批量导入课程测试"""

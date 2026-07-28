@@ -108,6 +108,44 @@ class CategoryForm(FlaskForm):
     submit = SubmitField("保存")
 
 
+class AdminEditStudentForm(FlaskForm):
+    """管理员编辑学生信息"""
+    username = StringField(
+        "用户名",
+        validators=[
+            DataRequired(message="请输入用户名"),
+            Length(min=2, max=64, message="用户名长度须在 2~64 之间"),
+        ],
+    )
+    email = StringField(
+        "邮箱",
+        validators=[
+            DataRequired(message="请输入邮箱"),
+            Email(message="邮箱格式不正确"),
+        ],
+    )
+    submit = SubmitField("保存修改")
+
+
+class AdminChangePasswordForm(FlaskForm):
+    """管理员修改学生密码"""
+    new_password = PasswordField(
+        "新密码",
+        validators=[
+            DataRequired(message="请输入新密码"),
+            Length(min=6, max=128, message="密码至少 6 位"),
+        ],
+    )
+    confirm_password = PasswordField(
+        "确认新密码",
+        validators=[
+            DataRequired(message="请再次输入新密码"),
+            EqualTo("new_password", message="两次密码输入不一致"),
+        ],
+    )
+    submit = SubmitField("修改密码")
+
+
 class CourseImportForm(FlaskForm):
     """批量导入课程表单"""
     file = FileField(

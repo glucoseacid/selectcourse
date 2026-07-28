@@ -665,8 +665,36 @@ main.container {
     color: #475569;
 }
 
+.badge-info {
+    background: #f0f9ff;
+    color: #075985;
+}
+
+.badge-warning {
+    background: #fffbeb;
+    color: #92400e;
+}
+
 .text-danger {
     color: var(--danger);
+}
+
+/* --- 页面头部操作区 --- */
+.header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* --- 表单提示 --- */
+.form-hint {
+    font-size: 0.875rem;
+    color: var(--gray-500);
+    margin-bottom: 16px;
+    padding: 8px 12px;
+    background: var(--primary-light);
+    border-radius: var(--radius);
+    border-left: 3px solid var(--primary);
 }
 
 /* --- 页脚 --- */

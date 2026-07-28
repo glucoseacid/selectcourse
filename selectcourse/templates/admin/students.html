@@ -15,6 +15,7 @@
             <th>邮箱</th>
             <th>注册时间</th>
             <th>已选课程数</th>
+            <th>操作</th>
         </tr>
     </thead>
     <tbody>
@@ -25,6 +26,14 @@
             <td>{{ student.email }}</td>
             <td>{{ student.created_at.strftime('%Y-%m-%d') }}</td>
             <td>{{ student.selections.filter_by(status='enrolled').count() }}</td>
+            <td class="actions">
+                <a href="{{ url_for('admin.student_detail', student_id=student.id) }}" class="btn btn-sm btn-secondary" title="查看详情">📋</a>
+                <a href="{{ url_for('admin.edit_student', student_id=student.id) }}" class="btn btn-sm btn-secondary" title="编辑信息">✏️</a>
+                <a href="{{ url_for('admin.change_student_password', student_id=student.id) }}" class="btn btn-sm btn-secondary" title="修改密码">🔑</a>
+                <form action="{{ url_for('admin.delete_student', student_id=student.id) }}" method="post" style="display:inline;" onsubmit="return confirm('确定要删除学生「{{ student.username }}」及其所有选课记录吗？此操作不可撤销。');">
+                    <button type="submit" class="btn btn-sm btn-danger" title="删除学生">🗑️</button>
+                </form>
+            </td>
         </tr>
         {% endfor %}
     </tbody>
