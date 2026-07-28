@@ -25,6 +25,51 @@ class TestCourseList:
         response = login_student.get("/course/?semester=2026-秋季")
         assert "Python 程序设计" in response.get_data(as_text=True)
 
+    def test_list_hide_enrolled(self, client, enrolled_student, sample_course, another_course):
+        """隐藏已选课程：默认隐藏后不显示已选课程"""
+        client.post("/auth/login", data={
+            "username": "teststudent",
+            "password": "password123",
+        })
+        response = client.get("/course/?hide_enrolled=1")
+        content = response.get_data(as_text=True)
+        # sample_course (CS101) 已选，应被隐藏
+        assert "Python 程序设计" not in content
+        # another_course (CS102) 未选，应仍显示
+        assert "Java 程序设计" in content
+
+    def test_list_show_enrolled_when_not_hidden(self, client, enrolled_student, sample_course, another_course):
+        """不隐藏时已选课程正常显示"""
+        client.post("/auth/login", data={
+            "username": "teststudent",
+            "password": "password123",
+        })
+        response = client.get("/course/")
+        content = response.get_data(as_text=True)
+        # 默认 hide_enrolled=0，已选课程应显示
+        assert "Python 程序设计" in content
+        assert "Java 程序设计" in content
+        # 已选课程应有"已选"标记
+        assert "已选" in content
+
+    def test_list_hide_enrolled_admin_not_affected(self, login_admin, enrolled_student, sample_course):
+        """管理员端不受隐藏已选影响"""
+        response = login_admin.get("/course/?hide_enrolled=1")
+        content = response.get_data(as_text=True)
+        # 管理员始终看到所有课程
+        assert "Python 程序设计" in content
+
+    def test_list_hide_enrolled_toggle_visible(self, client, enrolled_student, sample_course):
+        """验证页面上存在隐藏已选课程的勾选框"""
+        client.post("/auth/login", data={
+            "username": "teststudent",
+            "password": "password123",
+        })
+        response = client.get("/course/")
+        content = response.get_data(as_text=True)
+        assert 'hide_enrolled' in content
+        assert '隐藏已选课程' in content
+
 
 class TestCourseDetail:
     """课程详情测试"""

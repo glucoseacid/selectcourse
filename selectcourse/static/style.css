@@ -407,6 +407,27 @@ main.container {
     min-width: 200px;
 }
 
+.search-bar .hide-enrolled-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    color: var(--gray-700);
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+}
+
+.search-bar .hide-enrolled-label input[type="checkbox"] {
+    min-width: auto;
+    flex: none;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--primary);
+}
+
 /* --- 表单 --- */
 .form-container {
     max-width: 560px;

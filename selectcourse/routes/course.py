@@ -28,6 +28,17 @@ def list_courses():
     semester = request.args.get("semester", "")
     search = request.args.get("search", "")
     category = request.args.get("category", "")
+    hide_enrolled = request.args.get("hide_enrolled", "0") == "1"
+
+    # 获取当前学生已选课程 ID 集合（在过滤前计算，供模板使用）
+    enrolled_ids: set[int] = set()
+    if not current_user.is_admin:
+        enrolled_ids = {
+            s.course_id
+            for s in Selection.query.filter_by(
+                student_id=current_user.id, status="enrolled"
+            ).all()
+        }
 
     query = Course.query
     if semester:
@@ -43,20 +54,14 @@ def list_courses():
             )
         )
 
+    # 默认隐藏已选课程（学生端）
+    if hide_enrolled and enrolled_ids:
+        query = query.filter(~Course.id.in_(enrolled_ids))
+
     pagination = query.order_by(Course.code).paginate(
         page=page, per_page=12, error_out=False
     )
     courses = pagination.items
-
-    # 获取当前学生已选课程 ID 集合
-    enrolled_ids: set[int] = set()
-    if not current_user.is_admin:
-        enrolled_ids = {
-            s.course_id
-            for s in Selection.query.filter_by(
-                student_id=current_user.id, status="enrolled"
-            ).all()
-        }
 
     # 获取可选学期列表
     semesters = [
@@ -79,6 +84,7 @@ def list_courses():
         current_semester=semester,
         current_category=category,
         current_search=search,
+        hide_enrolled=hide_enrolled,
     )
 
 
