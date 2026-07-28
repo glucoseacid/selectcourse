@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}课程分类管理 - 管理后台{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h2>🏷️ 课程分类管理</h2>
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm">&laquo; 返回后台</a>
+</div>
+
+<div class="form-container" style="max-width: 600px; margin-bottom: 32px;">
+    <h3>➕ 添加新分类</h3>
+    <form method="POST" action="{{ url_for('admin.create_category') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label>{{ form.name.label }}</label>
+            <div style="display: flex; gap: 8px;">
+                {{ form.name(class="form-control", placeholder="输入分类名称") }}
+                {{ form.submit(class="btn btn-primary") }}
+            </div>
+            {% for error in form.name.errors %}
+            <span class="form-error">{{ error }}</span>
+            {% endfor %}
+        </div>
+    </form>
+</div>
+
+<div style="max-width: 600px;">
+    <h3>📋 现有分类</h3>
+    {% if categories %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>分类名称</th>
+                <th>课程数量</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for cat in categories %}
+            <tr>
+                <td>{{ cat.name }}</td>
+                <td>{{ cat.courses.filter_by().count() }}</td>
+                <td class="actions">
+                    <form method="POST" action="{{ url_for('admin.delete_category', category_id=cat.id) }}" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-danger"
+                            onclick="return confirm('确定要删除分类「{{ cat.name }}」吗？关联课程将取消分类。')">
+                            删除
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <p>📭 暂无分类，请添加</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

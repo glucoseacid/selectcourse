@@ -13,6 +13,12 @@
         <option value="{{ sem }}" {% if sem == current_semester %}selected{% endif %}>{{ sem }}</option>
         {% endfor %}
     </select>
+    <select name="category">
+        <option value="">全部课程分类</option>
+        {% for cat in categories %}
+        <option value="{{ cat.id }}" {% if cat.id|string == current_category %}selected{% endif %}>{{ cat.name }}</option>
+        {% endfor %}
+    </select>
     <button type="submit" class="btn btn-primary">🔍 搜索</button>
 </form>
 
@@ -29,6 +35,11 @@
             <span>📝 {{ course.credits }} 学分</span>
             <span>🏫 {{ course.semester }}</span>
         </p>
+        {% if course.category %}
+        <p class="course-meta">
+            <span>🏷️ {{ course.category.name }}</span>
+        </p>
+        {% endif %}
         <p class="course-meta">
             <span class="{% if course.is_full %}text-danger{% endif %}">
                 👥 {{ course.enrolled_count }}/{{ course.capacity }}
@@ -61,11 +72,11 @@
 
 <div class="pagination">
     {% if pagination.has_prev %}
-    <a href="{{ url_for('course.list_courses', page=pagination.prev_num, search=current_search, semester=current_semester) }}">&laquo; 上一页</a>
+    <a href="{{ url_for('course.list_courses', page=pagination.prev_num, search=current_search, semester=current_semester, category=current_category) }}">&laquo; 上一页</a>
     {% endif %}
     <span>第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
     {% if pagination.has_next %}
-    <a href="{{ url_for('course.list_courses', page=pagination.next_num, search=current_search, semester=current_semester) }}">下一页 &raquo;</a>
+    <a href="{{ url_for('course.list_courses', page=pagination.next_num, search=current_search, semester=current_semester, category=current_category) }}">下一页 &raquo;</a>
     {% endif %}
 </div>
 {% else %}

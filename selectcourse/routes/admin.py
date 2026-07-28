@@ -7,12 +7,19 @@ from flask_login import login_required, current_user
 from selectcourse.extensions import db
 from selectcourse.models.user import User
 from selectcourse.models.course import Course, CourseSchedule
+from selectcourse.models.category import CourseCategory
 from selectcourse.models.selection import Selection
-from selectcourse.forms import CourseForm, CourseImportForm, parse_import_file, _normalize_row, _validate_row
+from selectcourse.forms import (
+    CourseForm, CategoryForm, CourseImportForm,
+    parse_import_file, _normalize_row, _validate_row,
+)
 
 logger = logging.getLogger(__name__)
 
 admin_bp = Blueprint("admin", __name__)
+
+# 默认课程分类
+DEFAULT_CATEGORIES = ["通识课程", "必修课程", "体育分项", "其他"]
 
 
 def admin_required(f):
@@ -57,6 +64,8 @@ def manage_courses():
 @admin_required
 def create_course():
     form = CourseForm()
+    categories = CourseCategory.query.order_by(CourseCategory.display_order, CourseCategory.id).all()
+    form.set_category_choices(categories)
     if form.validate_on_submit():
         # 检查课程编号唯一性
         existing = Course.query.filter_by(code=form.code.data).first()
@@ -79,6 +88,7 @@ def create_course():
             credits=form.credits.data,
             capacity=form.capacity.data,
             semester=form.semester.data,
+            category_id=form.category_id.data if form.category_id.data != 0 else None,
             location=form.location.data or "",
             description=form.description.data or "",
         )
@@ -111,6 +121,10 @@ def edit_course(course_id: int):
         return redirect(url_for("admin.manage_courses"))
 
     form = CourseForm(obj=course)
+    categories = CourseCategory.query.order_by(CourseCategory.display_order, CourseCategory.id).all()
+    form.set_category_choices(categories)
+    if course.category_id is None:
+        form.category_id.data = 0  # 映射 — 不分类 —
 
     if form.validate_on_submit():
         # 检查课程编号唯一性（排除自身）
@@ -130,6 +144,7 @@ def edit_course(course_id: int):
                 return render_template("admin/edit_course.html", form=form, course=course)
 
         form.populate_obj(course)
+        course.category_id = form.category_id.data if form.category_id.data != 0 else None
         course.location = course.location or ""
         course.description = course.description or ""
 
@@ -215,6 +230,14 @@ def import_courses():
                 skip_count += 1
                 continue
 
+            # 解析分类名称 -> category_id
+            category_id = None
+            category_name = row.get("category_name", "").strip()
+            if category_name:
+                cat = CourseCategory.query.filter_by(name=category_name).first()
+                if cat:
+                    category_id = cat.id
+
             try:
                 course = Course(
                     name=row["name"],
@@ -223,6 +246,7 @@ def import_courses():
                     credits=row["credits"],
                     capacity=row["capacity"],
                     semester=row["semester"],
+                    category_id=category_id,
                     location=row.get("location", ""),
                     description=row.get("description", ""),
                 )
@@ -297,3 +321,72 @@ def manage_students():
     return render_template(
         "admin/students.html", students=pagination.items, pagination=pagination
     )
+
+
+# ---- 课程分类管理 ----
+
+
+@admin_bp.route("/categories")
+@admin_required
+def manage_categories():
+    """管理课程分类页面。"""
+    categories = CourseCategory.query.order_by(
+        CourseCategory.display_order, CourseCategory.id
+    ).all()
+    form = CategoryForm()
+    return render_template(
+        "admin/categories.html", categories=categories, form=form
+    )
+
+
+@admin_bp.route("/categories/create", methods=["POST"])
+@admin_required
+def create_category():
+    """添加课程分类。"""
+    form = CategoryForm()
+    if form.validate_on_submit():
+        name = form.name.data.strip()
+        existing = CourseCategory.query.filter_by(name=name).first()
+        if existing:
+            flash(f"分类「{name}」已存在。", "danger")
+        else:
+            category = CourseCategory(name=name)
+            db.session.add(category)
+            db.session.commit()
+            flash(f"分类「{name}」已添加。", "success")
+    else:
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                flash(err, "danger")
+    return redirect(url_for("admin.manage_categories"))
+
+
+@admin_bp.route("/categories/<int:category_id>/delete", methods=["POST"])
+@admin_required
+def delete_category(category_id: int):
+    """删除课程分类（同时将关联课程置为无分类）。"""
+    category = db.session.get(CourseCategory, category_id)
+    if category is None:
+        flash("分类不存在。", "danger")
+        return redirect(url_for("admin.manage_categories"))
+
+    name = category.name
+    # 将关联课程的 category_id 置空
+    Course.query.filter_by(category_id=category_id).update(
+        {Course.category_id: None}
+    )
+    db.session.delete(category)
+    db.session.commit()
+    flash(f"分类「{name}」已删除，关联课程已取消分类。", "info")
+    return redirect(url_for("admin.manage_categories"))
+
+
+# ---- 初始化默认分类 ----
+
+
+def init_default_categories() -> None:
+    """在应用启动时初始化默认课程分类（幂等）。"""
+    for cat_name in DEFAULT_CATEGORIES:
+        if not CourseCategory.query.filter_by(name=cat_name).first():
+            db.session.add(CourseCategory(name=cat_name))
+    db.session.commit()

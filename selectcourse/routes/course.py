@@ -4,6 +4,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from selectcourse.extensions import db
 from selectcourse.models.course import Course
+from selectcourse.models.category import CourseCategory
 from selectcourse.models.selection import Selection
 
 course_bp = Blueprint("course", __name__)
@@ -15,10 +16,13 @@ def list_courses():
     page = request.args.get("page", 1, type=int)
     semester = request.args.get("semester", "")
     search = request.args.get("search", "")
+    category = request.args.get("category", "")
 
     query = Course.query
     if semester:
         query = query.filter(Course.semester == semester)
+    if category:
+        query = query.filter(Course.category_id == int(category))
     if search:
         query = query.filter(
             db.or_(
@@ -49,13 +53,20 @@ def list_courses():
         for row in db.session.query(Course.semester).distinct().order_by(Course.semester).all()
     ]
 
+    # 获取所有课程分类
+    all_categories = CourseCategory.query.order_by(
+        CourseCategory.display_order, CourseCategory.id
+    ).all()
+
     return render_template(
         "course/list.html",
         courses=courses,
         pagination=pagination,
         enrolled_ids=enrolled_ids,
         semesters=semesters,
+        categories=all_categories,
         current_semester=semester,
+        current_category=category,
         current_search=search,
     )
 

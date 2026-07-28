@@ -56,12 +56,19 @@ class CourseForm(FlaskForm):
     credits = FloatField("学分", validators=[NumberRange(min=0.5, max=10, message="学分范围 0.5~10")])
     capacity = IntegerField("容量", validators=[NumberRange(min=1, max=999, message="容量范围 1~999")])
     semester = StringField("学期", validators=[DataRequired(message="请输入学期")])
+    category_id = SelectField("课程分类", coerce=int, validators=[Optional()])
     location = StringField("上课地点", validators=[Optional()])
     description = TextAreaField("课程描述", validators=[Optional()])
 
     # 多时间段：前端用 JSON 序列化后填入隐藏域
     schedules_json = HiddenField("排课数据", validators=[Optional()])
     submit = SubmitField("保存")
+
+    def set_category_choices(self, categories: list) -> None:
+        """动态设置分类下拉选项（由视图传入）。"""
+        self.category_id.choices = [(0, "— 不分类 —")] + [
+            (c.id, c.name) for c in categories
+        ]
 
     def parse_schedules(self) -> list[dict]:
         """解析 schedules_json 字段，返回时间段列表。"""
@@ -89,6 +96,18 @@ class CourseForm(FlaskForm):
             return []
 
 
+class CategoryForm(FlaskForm):
+    """管理员添加/编辑课程分类"""
+    name = StringField(
+        "分类名称",
+        validators=[
+            DataRequired(message="请输入分类名称"),
+            Length(min=1, max=64, message="分类名称长度须在 1~64 之间"),
+        ],
+    )
+    submit = SubmitField("保存")
+
+
 class CourseImportForm(FlaskForm):
     """批量导入课程表单"""
     file = FileField(
@@ -114,6 +133,7 @@ COLUMN_MAP = {
     "credits": "credits", "学分": "credits",
     "capacity": "capacity", "容量": "capacity", "人数上限": "capacity",
     "semester": "semester", "学期": "semester",
+    "category_name": "category_name", "课程分类": "category_name", "分类": "category_name",
     "description": "description", "课程描述": "description", "描述": "description",
     "location": "location", "上课地点": "location", "地点": "location", "教室": "location",
     "day_of_week": "day_of_week", "上课日": "day_of_week",

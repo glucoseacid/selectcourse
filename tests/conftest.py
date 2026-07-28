@@ -5,6 +5,7 @@ from selectcourse.config import TestingConfig
 from selectcourse.extensions import db as _db
 from selectcourse.models.user import User
 from selectcourse.models.course import Course, CourseSchedule
+from selectcourse.models.category import CourseCategory
 from selectcourse.models.selection import Selection
 
 
@@ -14,6 +15,9 @@ def app():
     app = create_app(TestingConfig)
     with app.app_context():
         _db.create_all()
+        # 初始化默认分类
+        from selectcourse.routes.admin import init_default_categories
+        init_default_categories()
         yield app
         _db.session.remove()
         _db.drop_all()
@@ -142,3 +146,15 @@ def login_admin(client, admin_user):
         "password": "admin123",
     }, follow_redirects=True)
     return client
+
+
+@pytest.fixture
+def sample_category(db):
+    """创建示例课程分类"""
+    from selectcourse.models.category import CourseCategory
+    cat = CourseCategory.query.filter_by(name="通识课程").first()
+    if cat is None:
+        cat = CourseCategory(name="通识课程")
+        db.session.add(cat)
+        db.session.commit()
+    return cat

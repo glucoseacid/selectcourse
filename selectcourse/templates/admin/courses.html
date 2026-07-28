@@ -17,6 +17,7 @@
             <th>教师</th>
             <th>学分</th>
             <th>学期</th>
+            <th>分类</th>
             <th>选课人数</th>
             <th>操作</th>
         </tr>
@@ -29,6 +30,7 @@
             <td>{{ course.teacher }}</td>
             <td>{{ course.credits }}</td>
             <td>{{ course.semester }}</td>
+            <td>{{ course.category.name if course.category else '—' }}</td>
             <td>{{ course.enrolled_count }}/{{ course.capacity }}</td>
             <td class="actions">
                 <a href="{{ url_for('admin.edit_course', course_id=course.id) }}" class="btn btn-sm">编辑</a>

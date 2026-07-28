@@ -15,10 +15,12 @@ class Course(db.Model):
     capacity = db.Column(db.Integer, nullable=False, default=60)
     enrolled_count = db.Column(db.Integer, nullable=False, default=0)
     semester = db.Column(db.String(16), nullable=False, default="2026-秋季")
+    category_id = db.Column(db.Integer, db.ForeignKey("course_categories.id"), nullable=True)
     location = db.Column(db.String(128), default="")
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     # 关系
+    category = db.relationship("CourseCategory", back_populates="courses")
     schedules = db.relationship(
         "CourseSchedule", back_populates="course", cascade="all, delete-orphan"
     )

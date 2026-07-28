@@ -475,3 +475,120 @@ class TestAdminCourseImport:
         # 确认未导入
         from selectcourse.models.course import Course
         assert Course.query.filter_by(code="CONF01").first() is None
+
+
+class TestAdminCategoryManagement:
+    """管理员课程分类管理测试"""
+
+    def test_categories_page_access(self, login_admin):
+        """分类管理页面可访问"""
+        response = login_admin.get("/admin/categories")
+        assert response.status_code == 200
+        assert "课程分类管理" in response.get_data(as_text=True)
+        # 默认分类应存在
+        assert "通识课程" in response.get_data(as_text=True)
+
+    def test_categories_page_requires_admin(self, client, student_user):
+        """非管理员无法访问分类管理页"""
+        client.post("/auth/login", data={
+            "username": "teststudent",
+            "password": "password123",
+        })
+        response = client.get("/admin/categories", follow_redirects=True)
+        assert "需要管理员权限" in response.get_data(as_text=True)
+
+    def test_create_category(self, login_admin):
+        """添加新分类"""
+        response = login_admin.post("/admin/categories/create", data={
+            "name": "实验课程",
+        }, follow_redirects=True)
+        assert response.status_code == 200
+        assert "已添加" in response.get_data(as_text=True)
+        assert "实验课程" in response.get_data(as_text=True)
+
+        from selectcourse.models.category import CourseCategory
+        cat = CourseCategory.query.filter_by(name="实验课程").first()
+        assert cat is not None
+
+    def test_create_duplicate_category(self, login_admin):
+        """添加重复分类"""
+        login_admin.post("/admin/categories/create", data={
+            "name": "实验课程",
+        }, follow_redirects=True)
+        response = login_admin.post("/admin/categories/create", data={
+            "name": "实验课程",
+        }, follow_redirects=True)
+        assert "已存在" in response.get_data(as_text=True)
+
+    def test_delete_category(self, login_admin, sample_category):
+        """删除分类"""
+        response = login_admin.post(
+            f"/admin/categories/{sample_category.id}/delete",
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "已删除" in response.get_data(as_text=True)
+
+        from selectcourse.models.category import CourseCategory
+        assert CourseCategory.query.get(sample_category.id) is None
+
+    def test_delete_category_clears_course(self, login_admin, sample_category, sample_course):
+        """删除分类后关联课程变为无分类"""
+        # 先将课程关联到分类
+        sample_course.category_id = sample_category.id
+        from selectcourse.extensions import db as _db
+        _db.session.commit()
+
+        response = login_admin.post(
+            f"/admin/categories/{sample_category.id}/delete",
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+
+        # 课程应变为无分类
+        from selectcourse.models.course import Course
+        c = _db.session.get(Course, sample_course.id)
+        assert c.category_id is None
+
+    def test_create_course_with_category(self, login_admin, sample_category):
+        """创建课程时选择分类"""
+        response = login_admin.post("/admin/courses/create", data={
+            "name": "分类课程",
+            "code": "CAT101",
+            "teacher": "赵教授",
+            "credits": 2.0,
+            "capacity": 50,
+            "semester": "2026-秋季",
+            "category_id": sample_category.id,
+            "schedules_json": json.dumps([
+                {"day_of_week": 1, "start_time": "08:00", "end_time": "09:40"},
+            ]),
+        }, follow_redirects=True)
+        assert response.status_code == 200
+        assert "创建成功" in response.get_data(as_text=True)
+
+        from selectcourse.models.course import Course
+        course = Course.query.filter_by(code="CAT101").first()
+        assert course is not None
+        assert course.category_id == sample_category.id
+
+
+class TestAdminCourseCategoryFilter:
+    """学生端课程分类筛选测试"""
+
+    def test_list_filter_by_category(self, login_student, sample_course, sample_category):
+        """按分类筛选课程"""
+        # 将示例课程关联到分类
+        from selectcourse.extensions import db as _db
+        sample_course.category_id = sample_category.id
+        _db.session.commit()
+
+        response = login_student.get(f"/course/?category={sample_category.id}")
+        assert response.status_code == 200
+        assert "Python 程序设计" in response.get_data(as_text=True)
+
+    def test_list_no_category_courses(self, login_student, sample_course):
+        """查看无分类课程"""
+        response = login_student.get("/course/")
+        assert response.status_code == 200
+        assert "全部课程分类" in response.get_data(as_text=True)
