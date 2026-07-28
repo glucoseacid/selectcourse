@@ -1,11 +1,14 @@
 """课程路由（浏览 / 详情 / 选课 / 退课 / 课表）"""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from selectcourse.extensions import db
 from selectcourse.models.course import Course, CourseSchedule
 from selectcourse.models.category import CourseCategory
 from selectcourse.models.selection import Selection
+
+# 北京时区 (UTC+8)
+BEIJING_TZ = timezone(timedelta(hours=8))
 
 course_bp = Blueprint("course", __name__)
 
@@ -167,7 +170,7 @@ def enroll(course_id: int):
     # 执行选课：已有退课记录则复用，否则新建
     if existing:
         existing.status = "enrolled"
-        existing.enrolled_at = datetime.now(timezone.utc)
+        existing.enrolled_at = datetime.now(BEIJING_TZ)
     else:
         existing = Selection(student_id=current_user.id, course_id=course_id)
         db.session.add(existing)

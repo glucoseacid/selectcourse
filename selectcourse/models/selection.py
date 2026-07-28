@@ -1,6 +1,9 @@
 """选课记录模型"""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from selectcourse.extensions import db
+
+# 北京时区 (UTC+8)
+BEIJING_TZ = timezone(timedelta(hours=8))
 
 
 class Selection(db.Model):
@@ -13,7 +16,7 @@ class Selection(db.Model):
     status = db.Column(
         db.String(16), nullable=False, default="enrolled"
     )  # enrolled | dropped
-    enrolled_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    enrolled_at = db.Column(db.DateTime, default=lambda: datetime.now(BEIJING_TZ))
 
     student = db.relationship("User", back_populates="selections")
     course = db.relationship("Course", back_populates="selections")
