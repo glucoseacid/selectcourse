@@ -1147,6 +1147,24 @@ main.container {
     border-top: 1px solid var(--gray-100);
 }
 
+/* --- 查看按钮 --- */
+.btn-info {
+    background: var(--info);
+    color: #fff;
+}
+
+.btn-info:hover {
+    background: #0369a1;
+}
+
+/* --- 弹窗错误提示 --- */
+.modal-error {
+    text-align: center;
+    color: var(--danger);
+    padding: 20px 0;
+    font-size: 0.95rem;
+}
+
 /* --- 打印样式 --- */
 @media print {
     .navbar,

@@ -190,6 +190,42 @@ def edit_course(course_id: int):
     return render_template("admin/edit_course.html", form=form, course=course)
 
 
+@admin_bp.route("/courses/<int:course_id>/view")
+@admin_required
+def view_course(course_id: int):
+    """返回课程详细信息（JSON），供前端弹窗使用。"""
+    course = db.session.get(Course, course_id)
+    if course is None:
+        return {"error": "课程不存在"}, 404
+
+    days_label = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+
+    return {
+        "id": course.id,
+        "name": course.name,
+        "code": course.code,
+        "teacher": course.teacher,
+        "credits": course.credits,
+        "capacity": course.capacity,
+        "enrolled_count": course.enrolled_count,
+        "available_slots": course.available_slots,
+        "semester": course.semester,
+        "category_name": course.category.name if course.category else "—",
+        "location": course.location or "—",
+        "description": course.description or "暂无简介",
+        "created_at": course.created_at.strftime("%Y-%m-%d %H:%M") if course.created_at else "—",
+        "schedules": [
+            {
+                "day_of_week": s.day_of_week,
+                "day_label": days_label[s.day_of_week] if 0 <= s.day_of_week < 7 else f"周{s.day_of_week}",
+                "start_time": s.start_time,
+                "end_time": s.end_time,
+            }
+            for s in course.schedules
+        ],
+    }
+
+
 @admin_bp.route("/courses/<int:course_id>/delete", methods=["POST"])
 @admin_required
 def delete_course(course_id: int):

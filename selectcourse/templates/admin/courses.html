@@ -43,6 +43,7 @@
             <td>{{ course.category.name if course.category else '—' }}</td>
             <td>{{ course.enrolled_count }}/{{ course.capacity }}</td>
             <td class="actions">
+                <button type="button" class="btn btn-sm btn-info" onclick="viewCourse({{ course.id }})">查看</button>
                 <a href="{{ url_for('admin.edit_course', course_id=course.id) }}" class="btn btn-sm">编辑</a>
                 <form method="POST" action="{{ url_for('admin.delete_course', course_id=course.id) }}" style="display:inline">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -68,4 +69,126 @@
     <p>📭 {% if search_q %}未找到匹配"{{ search_q }}"的课程{% else %}暂无课程，<a href="{{ url_for('admin.create_course') }}">添加第一门课程</a>{% endif %}</p>
 </div>
 {% endif %}
+
+<!-- 课程详情弹窗 -->
+<div class="modal-overlay" id="courseModal" style="display:none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modalTitle">课程详情</h3>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="modalBody">
+            <div class="modal-loading">加载中…</div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal()">关闭</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function viewCourse(courseId) {
+    const modal = document.getElementById("courseModal");
+    const body = document.getElementById("modalBody");
+    modal.style.display = "flex";
+    body.innerHTML = '<div class="modal-loading">加载中…</div>';
+
+    fetch('/admin/courses/' + courseId + '/view')
+        .then(function(res) {
+            if (!res.ok) throw new Error("课程不存在");
+            return res.json();
+        })
+        .then(function(course) {
+            document.getElementById("modalTitle").textContent = '📖 ' + course.name;
+            var schedulesHtml = '';
+            if (course.schedules.length > 0) {
+                course.schedules.forEach(function(s) {
+                    schedulesHtml += '<span class="modal-schedule-tag">' + escHtml(s.day_label) + ' ' + escHtml(s.start_time) + '-' + escHtml(s.end_time) + '</span>';
+                });
+            } else {
+                schedulesHtml = '<span class="text-muted">暂无排课信息</span>';
+            }
+
+            var slotsBadge = '';
+            if (course.available_slots > 0) {
+                slotsBadge = '<span class="badge badge-success">余' + course.available_slots + '人</span>';
+            } else {
+                slotsBadge = '<span class="badge badge-danger">已满</span>';
+            }
+
+            body.innerHTML =
+                '<div class="modal-info-grid">' +
+                    '<div class="modal-info-item">' +
+                        '<span class="modal-info-label">课程编号</span>' +
+                        '<span class="modal-info-value">' + escHtml(course.code) + '</span>' +
+                    '</div>' +
+                    '<div class="modal-info-item">' +
+                        '<span class="modal-info-label">课程名称</span>' +
+                        '<span class="modal-info-value">' + escHtml(course.name) + '</span>' +
+                    '</div>' +
+                    '<div class="modal-info-item">' +
+                        '<span class="modal-info-label">授课教师</span>' +
+                        '<span class="modal-info-value">' + escHtml(course.teacher) + '</span>' +
+                    '</div>' +
+                    '<div class="modal-info-item">' +
+                        '<span class="modal-info-label">学分</span>' +
+                        '<span class="modal-info-value">' + course.credits + ' 学分</span>' +
+                    '</div>' +
+                    '<div class="modal-info-item">' +
+                        '<span class="modal-info-label">学期</span>' +
+                        '<span class="modal-info-value">' + escHtml(course.semester) + '</span>' +
+                    '</div>' +
+                    '<div class="modal-info-item">' +
+                        '<span class="modal-info-label">课程分类</span>' +
+                        '<span class="modal-info-value">' + escHtml(course.category_name) + '</span>' +
+                    '</div>' +
+                    '<div class="modal-info-item">' +
+                        '<span class="modal-info-label">上课地点</span>' +
+                        '<span class="modal-info-value">' + escHtml(course.location) + '</span>' +
+                    '</div>' +
+                    '<div class="modal-info-item">' +
+                        '<span class="modal-info-label">选课人数</span>' +
+                        '<span class="modal-info-value">' + course.enrolled_count + ' / ' + course.capacity + ' ' + slotsBadge + '</span>' +
+                    '</div>' +
+                    '<div class="modal-info-item modal-info-full">' +
+                        '<span class="modal-info-label">上课时间</span>' +
+                        '<span class="modal-info-value">' + schedulesHtml + '</span>' +
+                    '</div>' +
+                    '<div class="modal-info-item modal-info-full">' +
+                        '<span class="modal-info-label">课程简介</span>' +
+                        '<span class="modal-info-value">' + escHtml(course.description) + '</span>' +
+                    '</div>' +
+                    '<div class="modal-info-item">' +
+                        '<span class="modal-info-label">创建时间</span>' +
+                        '<span class="modal-info-value" style="color:var(--gray-500);font-size:0.85rem;">' + escHtml(course.created_at) + '</span>' +
+                    '</div>' +
+                '</div>';
+        })
+        .catch(function(err) {
+            body.innerHTML = '<div class="modal-error">⚠️ 加载失败：' + escHtml(err.message) + '</div>';
+        });
+}
+
+function closeModal() {
+    document.getElementById("courseModal").style.display = "none";
+}
+
+function escHtml(str) {
+    var div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// 点击遮罩层关闭弹窗
+document.getElementById("courseModal").addEventListener("click", function(e) {
+    if (e.target === this) closeModal();
+});
+
+// ESC 键关闭弹窗
+document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape") closeModal();
+});
+</script>
 {% endblock %}
