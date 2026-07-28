@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}选课记录 - 管理后台{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h2>📋 选课记录管理</h2>
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm">&laquo; 返回后台</a>
+</div>
+
+<div class="search-panel">
+    <form method="get" action="{{ url_for('admin.manage_selections') }}" class="search-bar">
+        {{ form.keyword(class="form-control", placeholder="输入搜索关键词...", value=keyword, style="flex: 2;") }}
+        {{ form.search_type(class="form-control", style="flex: 1; min-width: 130px;") }}
+        {{ form.search_mode(class="form-control", style="flex: 1; min-width: 130px;") }}
+        <button type="submit" class="btn btn-primary">🔍 搜索</button>
+        {% if keyword %}
+        <a href="{{ url_for('admin.manage_selections') }}" class="btn btn-secondary">清除</a>
+        {% endif %}
+    </form>
+    {% if keyword %}
+    <p class="search-hint">
+        当前搜索：<strong>{{ keyword }}</strong>
+        （范围：{{ dict(form.search_type.choices).get(search_type, search_type) }}，
+        模式：{{ dict(form.search_mode.choices).get(search_mode, search_mode) }}）
+    </p>
+    {% endif %}
+</div>
+
+{% if selections %}
+<div class="table-info">
+    <span>共 <strong>{{ pagination.total }}</strong> 条选课记录</span>
+</div>
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>学生</th>
+            <th>课程编号</th>
+            <th>课程名称</th>
+            <th>授课教师</th>
+            <th>状态</th>
+            <th>选课时间</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for sel in selections %}
+        <tr>
+            <td>{{ sel.id }}</td>
+            <td>{{ sel.student.username }}</td>
+            <td><code>{{ sel.course.code }}</code></td>
+            <td>
+                <a href="{{ url_for('course.detail', course_id=sel.course.id) }}">{{ sel.course.name }}</a>
+            </td>
+            <td>{{ sel.course.teacher }}</td>
+            <td>
+                {% if sel.status == 'enrolled' %}
+                <span class="badge badge-success">已选</span>
+                {% elif sel.status == 'dropped' %}
+                <span class="badge badge-danger">已退</span>
+                {% else %}
+                <span class="badge badge-secondary">{{ sel.status }}</span>
+                {% endif %}
+            </td>
+            <td>{{ sel.enrolled_at.strftime('%Y-%m-%d %H:%M') if sel.enrolled_at else '-' }}</td>
+            <td>
+                <form method="post" action="{{ url_for('admin.delete_selection', selection_id=sel.id) }}"
+                      onsubmit="return confirm('确定要删除这条选课记录吗？此操作不可撤销。');" style="display:inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="pagination">
+    {% if pagination.has_prev %}
+    <a href="{{ url_for('admin.manage_selections', page=pagination.prev_num, keyword=keyword, search_type=search_type, search_mode=search_mode) }}">&laquo; 上一页</a>
+    {% endif %}
+    <span>第 {{ pagination.page }} / {{ pagination.pages }} 页（共 {{ pagination.total }} 条）</span>
+    {% if pagination.has_next %}
+    <a href="{{ url_for('admin.manage_selections', page=pagination.next_num, keyword=keyword, search_type=search_type, search_mode=search_mode) }}">下一页 &raquo;</a>
+    {% endif %}
+</div>
+{% else %}
+<div class="empty-state">
+    {% if keyword %}
+    <p>🔍 未找到与「<strong>{{ keyword }}</strong>」匹配的选课记录</p>
+    <a href="{{ url_for('admin.manage_selections') }}" class="btn btn-secondary">查看全部记录</a>
+    {% else %}
+    <p>📭 暂无选课记录</p>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

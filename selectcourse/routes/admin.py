@@ -10,7 +10,7 @@ from selectcourse.models.course import Course, CourseSchedule
 from selectcourse.models.category import CourseCategory
 from selectcourse.models.selection import Selection
 from selectcourse.forms import (
-    CourseForm, CategoryForm, CourseImportForm,
+    CourseForm, CategoryForm, CourseImportForm, SelectionSearchForm,
     parse_import_file, _normalize_row, _validate_row,
 )
 
@@ -395,6 +395,101 @@ def delete_category(category_id: int):
     db.session.commit()
     flash(f"分类「{name}」已删除，关联课程已取消分类。", "info")
     return redirect(url_for("admin.manage_categories"))
+
+
+# ---- 选课记录管理 ----
+
+
+@admin_bp.route("/selections")
+@admin_required
+def manage_selections():
+    """管理员查看和搜索选课记录。"""
+    form = SelectionSearchForm(request.args)
+
+    keyword = (request.args.get("keyword", "") or "").strip()
+    search_type = request.args.get("search_type", "all")
+    search_mode = request.args.get("search_mode", "fuzzy")
+    page = request.args.get("page", 1, type=int)
+
+    # 构建查询：join 三张表
+    query = (
+        db.session.query(Selection)
+        .join(User, Selection.student_id == User.id)
+        .join(Course, Selection.course_id == Course.id)
+    )
+
+    if keyword:
+        if search_mode == "exact":
+            # 精确匹配
+            if search_type == "course":
+                query = query.filter(Course.name == keyword)
+            elif search_type == "teacher":
+                query = query.filter(Course.teacher == keyword)
+            elif search_type == "student":
+                query = query.filter(User.username == keyword)
+            else:  # all
+                query = query.filter(
+                    db.or_(
+                        Course.name == keyword,
+                        Course.teacher == keyword,
+                        User.username == keyword,
+                    )
+                )
+        else:
+            # 模糊匹配
+            pattern = f"%{keyword}%"
+            if search_type == "course":
+                query = query.filter(Course.name.ilike(pattern))
+            elif search_type == "teacher":
+                query = query.filter(Course.teacher.ilike(pattern))
+            elif search_type == "student":
+                query = query.filter(User.username.ilike(pattern))
+            else:  # all
+                query = query.filter(
+                    db.or_(
+                        Course.name.ilike(pattern),
+                        Course.teacher.ilike(pattern),
+                        User.username.ilike(pattern),
+                    )
+                )
+
+    # 按选课时间倒序排列
+    query = query.order_by(Selection.enrolled_at.desc())
+
+    pagination = query.paginate(page=page, per_page=20, error_out=False)
+
+    return render_template(
+        "admin/selections.html",
+        selections=pagination.items,
+        pagination=pagination,
+        form=form,
+        keyword=keyword,
+        search_type=search_type,
+        search_mode=search_mode,
+    )
+
+
+@admin_bp.route("/selections/<int:selection_id>/delete", methods=["POST"])
+@admin_required
+def delete_selection(selection_id: int):
+    """删除单条选课记录。"""
+    selection = db.session.get(Selection, selection_id)
+    if selection is None:
+        flash("选课记录不存在。", "danger")
+        return redirect(url_for("admin.manage_selections"))
+
+    # 如果状态为 enrolled，需要将课程的 enrolled_count 减 1
+    if selection.status == "enrolled":
+        course = selection.course
+        if course and course.enrolled_count > 0:
+            course.enrolled_count -= 1
+
+    student_name = selection.student.username
+    course_name = selection.course.name
+    db.session.delete(selection)
+    db.session.commit()
+    flash(f"学生「{student_name}」的选课记录「{course_name}」已删除。", "info")
+    return redirect(url_for("admin.manage_selections"))
 
 
 # ---- 初始化默认分类 ----

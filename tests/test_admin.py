@@ -732,3 +732,256 @@ class TestAdminCourseCategoryFilter:
         response = login_student.get("/course/")
         assert response.status_code == 200
         assert "全部课程分类" in response.get_data(as_text=True)
+
+
+class TestAdminSelectionManagement:
+    """管理员选课记录管理测试"""
+
+    def test_selections_page_access(self, login_admin):
+        """选课记录页面可访问"""
+        response = login_admin.get("/admin/selections")
+        assert response.status_code == 200
+        assert "选课记录管理" in response.get_data(as_text=True)
+
+    def test_selections_page_empty(self, login_admin):
+        """暂无选课记录时提示"""
+        response = login_admin.get("/admin/selections")
+        assert "暂无选课记录" in response.get_data(as_text=True)
+
+    def test_selections_show_enrollments(self, login_admin, enrolled_student, sample_course):
+        """选课记录页面显示已选课记录"""
+        response = login_admin.get("/admin/selections")
+        assert response.status_code == 200
+        text = response.get_data(as_text=True)
+        assert "teststudent" in text
+        assert "Python 程序设计" in text
+        assert "CS101" in text
+        assert "张教授" in text
+        assert "已选" in text
+
+    def test_selections_unauthorized(self, client, student_user):
+        """非管理员无法访问选课记录"""
+        client.post("/auth/login", data={
+            "username": "teststudent",
+            "password": "password123",
+        })
+        response = client.get("/admin/selections", follow_redirects=True)
+        assert "需要管理员权限" in response.get_data(as_text=True)
+
+    # --- 搜索功能测试 ---
+
+    def test_search_by_course_fuzzy(self, login_admin, enrolled_student, sample_course):
+        """模糊搜索：按课程名称"""
+        response = login_admin.get(
+            "/admin/selections?keyword=Python&search_type=course&search_mode=fuzzy"
+        )
+        assert response.status_code == 200
+        assert "teststudent" in response.get_data(as_text=True)
+
+    def test_search_by_course_exact(self, login_admin, enrolled_student, sample_course):
+        """精确搜索：按课程名称"""
+        response = login_admin.get(
+            "/admin/selections?keyword=Python+程序设计&search_type=course&search_mode=exact"
+        )
+        assert response.status_code == 200
+        assert "teststudent" in response.get_data(as_text=True)
+
+    def test_search_by_course_exact_no_match(self, login_admin, enrolled_student):
+        """精确搜索：课程名不匹配"""
+        response = login_admin.get(
+            "/admin/selections?keyword=Python&search_type=course&search_mode=exact"
+        )
+        assert response.status_code == 200
+        assert "未找到" in response.get_data(as_text=True)
+
+    def test_search_by_teacher_fuzzy(self, login_admin, enrolled_student, sample_course):
+        """模糊搜索：按教师名"""
+        response = login_admin.get(
+            "/admin/selections?keyword=张&search_type=teacher&search_mode=fuzzy"
+        )
+        assert response.status_code == 200
+        assert "teststudent" in response.get_data(as_text=True)
+
+    def test_search_by_teacher_exact(self, login_admin, enrolled_student, sample_course):
+        """精确搜索：按教师名"""
+        response = login_admin.get(
+            "/admin/selections?keyword=张教授&search_type=teacher&search_mode=exact"
+        )
+        assert response.status_code == 200
+        assert "teststudent" in response.get_data(as_text=True)
+
+    def test_search_by_student_fuzzy(self, login_admin, enrolled_student, sample_course):
+        """模糊搜索：按学生用户名"""
+        response = login_admin.get(
+            "/admin/selections?keyword=test&search_type=student&search_mode=fuzzy"
+        )
+        assert response.status_code == 200
+        assert "teststudent" in response.get_data(as_text=True)
+
+    def test_search_by_student_exact(self, login_admin, enrolled_student, sample_course):
+        """精确搜索：按学生用户名"""
+        response = login_admin.get(
+            "/admin/selections?keyword=teststudent&search_type=student&search_mode=exact"
+        )
+        assert response.status_code == 200
+        assert "Python 程序设计" in response.get_data(as_text=True)
+
+    def test_search_all_fields_fuzzy(self, login_admin, enrolled_student, sample_course):
+        """模糊搜索：全部字段"""
+        response = login_admin.get(
+            "/admin/selections?keyword=Pyt&search_type=all&search_mode=fuzzy"
+        )
+        assert response.status_code == 200
+        assert "teststudent" in response.get_data(as_text=True)
+
+    def test_search_no_results(self, login_admin, enrolled_student):
+        """搜索无结果"""
+        response = login_admin.get(
+            "/admin/selections?keyword=不存在xyz&search_type=all&search_mode=fuzzy"
+        )
+        assert response.status_code == 200
+        assert "未找到" in response.get_data(as_text=True)
+
+    def test_search_clear_reset(self, login_admin, enrolled_student, sample_course):
+        """搜索后清除显示全部"""
+        response = login_admin.get(
+            "/admin/selections?keyword=Python&search_type=course&search_mode=fuzzy"
+        )
+        assert "Python 程序设计" in response.get_data(as_text=True)
+        # 清除搜索
+        response = login_admin.get("/admin/selections")
+        assert "Python 程序设计" in response.get_data(as_text=True)
+
+    def test_search_multiple_results(self, login_admin, db, student_user, sample_course, another_course):
+        """多门课程选课时搜索教师返回多条结果"""
+        # 再选一门课
+        from selectcourse.models.selection import Selection
+        sel = Selection(
+            student_id=student_user.id,
+            course_id=another_course.id,
+            status="enrolled",
+        )
+        another_course.enrolled_count = 1
+        db.session.add(sel)
+        db.session.commit()
+
+        # 搜索教师"李"（another_course 的教师）
+        response = login_admin.get(
+            "/admin/selections?keyword=李&search_type=teacher&search_mode=fuzzy"
+        )
+        assert response.status_code == 200
+        text = response.get_data(as_text=True)
+        assert "Java 程序设计" in text
+
+    # --- 删除选课记录测试 ---
+
+    def test_delete_selection(self, login_admin, enrolled_student, sample_course):
+        """删除选课记录"""
+        from selectcourse.models.selection import Selection
+        from selectcourse.models.course import Course
+
+        sel = Selection.query.filter_by(
+            student_id=enrolled_student.id, course_id=sample_course.id
+        ).first()
+        assert sel is not None
+
+        course = Course.query.get(sample_course.id)
+        old_count = course.enrolled_count
+
+        response = login_admin.post(
+            f"/admin/selections/{sel.id}/delete",
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "已删除" in response.get_data(as_text=True)
+
+        # 确认记录已删除
+        assert Selection.query.get(sel.id) is None
+        # 确认 enrolled_count 已减少
+        assert Course.query.get(sample_course.id).enrolled_count == old_count - 1
+
+    def test_delete_nonexistent_selection(self, login_admin):
+        """删除不存在的选课记录"""
+        response = login_admin.post(
+            "/admin/selections/99999/delete",
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "不存在" in response.get_data(as_text=True)
+
+    def test_delete_dropped_selection(self, login_admin, db, student_user, sample_course):
+        """删除已退选记录不减少 enrolled_count"""
+        from selectcourse.models.selection import Selection
+        from selectcourse.models.course import Course
+
+        sel = Selection(
+            student_id=student_user.id,
+            course_id=sample_course.id,
+            status="dropped",
+        )
+        db.session.add(sel)
+        db.session.commit()
+
+        course = Course.query.get(sample_course.id)
+        old_count = course.enrolled_count
+
+        response = login_admin.post(
+            f"/admin/selections/{sel.id}/delete",
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "已删除" in response.get_data(as_text=True)
+        # 已退选不应减少 enrolled_count
+        assert Course.query.get(sample_course.id).enrolled_count == old_count
+
+    def test_selections_pagination(self, login_admin, db, student_user, sample_course):
+        """选课记录分页测试"""
+        from selectcourse.models.selection import Selection
+        from selectcourse.models.course import Course
+
+        # 创建多个学生 + 多门课程来生成足够的选课记录
+        from selectcourse.models.user import User
+        students = []
+        for i in range(5):
+            u = User(
+                username=f"pagination_student_{i}",
+                email=f"pagination_{i}@test.edu",
+                role="student",
+            )
+            u.set_password("password123")
+            db.session.add(u)
+            db.session.flush()
+            students.append(u)
+
+        courses = [sample_course]
+        for i in range(5):
+            c = Course(
+                name=f"分页测试课程_{i}",
+                code=f"PAGE{i:03d}",
+                teacher=f"教师_{i}",
+                credits=2.0,
+                capacity=100,
+                semester="2026-秋季",
+            )
+            db.session.add(c)
+            db.session.flush()
+            courses.append(c)
+
+        # 为每个学生选不同的课程组合
+        for si, student in enumerate(students):
+            for ci, course in enumerate(courses):
+                if (si + ci) % 3 == 0:
+                    continue  # 跳过一些以模拟真实情况
+                sel = Selection(
+                    student_id=student.id,
+                    course_id=course.id,
+                    status="enrolled",
+                )
+                db.session.add(sel)
+        db.session.commit()
+
+        # 第 1 页应有 20 条（per_page=20）
+        response = login_admin.get("/admin/selections?page=1")
+        assert response.status_code == 200
+        text = response.get_data(as_text=True)
+        assert "第 1 /" in text or "第 1 " in text

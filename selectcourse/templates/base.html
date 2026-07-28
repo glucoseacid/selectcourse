@@ -16,6 +16,7 @@
                         <a href="{{ url_for('admin.dashboard') }}">管理后台</a>
                         <a href="{{ url_for('admin.manage_courses') }}">课程管理</a>
                         <a href="{{ url_for('admin.manage_students') }}">学生管理</a>
+                        <a href="{{ url_for('admin.manage_selections') }}">选课记录</a>
                     {% else %}
                         <a href="{{ url_for('course.list_courses') }}">课程列表</a>
                         <a href="{{ url_for('course.timetable') }}">课程表</a>

@@ -123,6 +123,30 @@ class CourseImportForm(FlaskForm):
     submit = SubmitField("导入课程")
 
 
+class SelectionSearchForm(FlaskForm):
+    """管理员选课记录搜索表单"""
+    keyword = StringField("搜索关键词", validators=[Optional()])
+    search_type = SelectField(
+        "搜索范围",
+        choices=[
+            ("all", "全部字段"),
+            ("course", "课程名称"),
+            ("teacher", "授课教师"),
+            ("student", "学生用户名"),
+        ],
+        default="all",
+    )
+    search_mode = SelectField(
+        "搜索模式",
+        choices=[
+            ("fuzzy", "模糊搜索"),
+            ("exact", "精确搜索"),
+        ],
+        default="fuzzy",
+    )
+    submit = SubmitField("搜索")
+
+
 # ---- 导入解析器 ----
 
 # 列名映射：支持中英文表头
