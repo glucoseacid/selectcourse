@@ -550,27 +550,91 @@ class TestAdminCategoryManagement:
         c = _db.session.get(Course, sample_course.id)
         assert c.category_id is None
 
-    def test_create_course_with_category(self, login_admin, sample_category):
-        """创建课程时选择分类"""
-        response = login_admin.post("/admin/courses/create", data={
-            "name": "分类课程",
-            "code": "CAT101",
-            "teacher": "赵教授",
-            "credits": 2.0,
-            "capacity": 50,
-            "semester": "2026-秋季",
-            "category_id": sample_category.id,
-            "schedules_json": json.dumps([
-                {"day_of_week": 1, "start_time": "08:00", "end_time": "09:40"},
-            ]),
-        }, follow_redirects=True)
-        assert response.status_code == 200
-        assert "创建成功" in response.get_data(as_text=True)
+    def test_edit_course_change_category(self, login_admin, sample_course, sample_category):
+        """编辑课程时修改分类应持久化"""
+        from selectcourse.models.category import CourseCategory
 
+        # 先确保课程开始时无分类
+        sample_course.category_id = None
+        from selectcourse.extensions import db as _db
+        _db.session.commit()
+
+        # 获取另一个分类（与 sample_category 不同）
+        other_cat = CourseCategory.query.filter(
+            CourseCategory.id != sample_category.id
+        ).first()
+        if other_cat is None:
+            # 如果没有其他分类，创建一个
+            other_cat = CourseCategory(name="测试分类_X")
+            _db.session.add(other_cat)
+            _db.session.commit()
+
+        # 编辑课程，设置分类为 sample_category
+        response = login_admin.post(
+            f"/admin/courses/{sample_course.id}/edit",
+            data={
+                "name": sample_course.name,
+                "code": sample_course.code,
+                "teacher": sample_course.teacher,
+                "credits": sample_course.credits,
+                "capacity": sample_course.capacity,
+                "semester": sample_course.semester,
+                "category_id": sample_category.id,
+                "schedules_json": json.dumps([
+                    {"day_of_week": 1, "start_time": "08:00", "end_time": "09:40"},
+                ]),
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "更新成功" in response.get_data(as_text=True)
+
+        # 验证分类已更新
         from selectcourse.models.course import Course
-        course = Course.query.filter_by(code="CAT101").first()
-        assert course is not None
-        assert course.category_id == sample_category.id
+        c = _db.session.get(Course, sample_course.id)
+        assert c.category_id == sample_category.id
+
+        # 编辑课程，切换为另一分类
+        response = login_admin.post(
+            f"/admin/courses/{sample_course.id}/edit",
+            data={
+                "name": sample_course.name,
+                "code": sample_course.code,
+                "teacher": sample_course.teacher,
+                "credits": sample_course.credits,
+                "capacity": sample_course.capacity,
+                "semester": sample_course.semester,
+                "category_id": other_cat.id,
+                "schedules_json": json.dumps([
+                    {"day_of_week": 1, "start_time": "08:00", "end_time": "09:40"},
+                ]),
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        c = _db.session.get(Course, sample_course.id)
+        assert c.category_id == other_cat.id
+
+        # 编辑课程，取消分类（选择 — 不分类 —）
+        response = login_admin.post(
+            f"/admin/courses/{sample_course.id}/edit",
+            data={
+                "name": sample_course.name,
+                "code": sample_course.code,
+                "teacher": sample_course.teacher,
+                "credits": sample_course.credits,
+                "capacity": sample_course.capacity,
+                "semester": sample_course.semester,
+                "category_id": 0,  # — 不分类 —
+                "schedules_json": json.dumps([
+                    {"day_of_week": 1, "start_time": "08:00", "end_time": "09:40"},
+                ]),
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        c = _db.session.get(Course, sample_course.id)
+        assert c.category_id is None
 
 
 class TestAdminCourseCategoryFilter:

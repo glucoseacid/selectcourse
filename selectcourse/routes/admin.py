@@ -120,11 +120,15 @@ def edit_course(course_id: int):
         flash("课程不存在。", "danger")
         return redirect(url_for("admin.manage_courses"))
 
-    form = CourseForm(obj=course)
     categories = CourseCategory.query.order_by(CourseCategory.display_order, CourseCategory.id).all()
+    form = CourseForm()
     form.set_category_choices(categories)
-    if course.category_id is None:
-        form.category_id.data = 0  # 映射 — 不分类 —
+
+    # GET 请求时：用课程数据填充表单（分类选项已就绪，SelectField 可正确匹配）
+    if request.method == "GET":
+        form.process(obj=course)
+        if course.category_id is None:
+            form.category_id.data = 0  # 映射 — 不分类 —
 
     if form.validate_on_submit():
         # 检查课程编号唯一性（排除自身）
@@ -143,10 +147,16 @@ def edit_course(course_id: int):
                 flash(f"上课时间段冲突：{error_msg}", "danger")
                 return render_template("admin/edit_course.html", form=form, course=course)
 
-        form.populate_obj(course)
+        # 手动赋值各字段（避免 populate_obj 与 SQLAlchemy relationship 的潜在冲突）
+        course.name = form.name.data
+        course.code = form.code.data
+        course.teacher = form.teacher.data
+        course.credits = form.credits.data
+        course.capacity = form.capacity.data
+        course.semester = form.semester.data
         course.category_id = form.category_id.data if form.category_id.data != 0 else None
-        course.location = course.location or ""
-        course.description = course.description or ""
+        course.location = form.location.data or ""
+        course.description = form.description.data or ""
 
         # 更新排课：先清空再重建
         CourseSchedule.query.filter_by(course_id=course.id).delete()
