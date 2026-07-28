@@ -476,6 +476,82 @@ class TestAdminCourseImport:
         from selectcourse.models.course import Course
         assert Course.query.filter_by(code="CONF01").first() is None
 
+    def test_import_csv_with_category(self, login_admin, sample_category):
+        """CSV 导入时包含课程分类"""
+        csv_content = (
+            "课程名称,课程编号,授课教师,学分,容量,学期,课程分类\n"
+            "马克思主义原理,MARX101,周教授,3.0,80,2026-秋季,必修课程\n"
+        )
+        data = {"file": (io.BytesIO(csv_content.encode("utf-8")), "courses.csv")}
+        response = login_admin.post(
+            "/admin/courses/import",
+            data=data,
+            content_type="multipart/form-data",
+            follow_redirects=False,
+        )
+        assert response.status_code == 200
+        assert "成功导入 1" in response.get_data(as_text=True)
+
+        from selectcourse.models.course import Course
+        c = Course.query.filter_by(code="MARX101").first()
+        assert c is not None
+        assert c.category_id is not None
+        assert c.category.name == "必修课程"
+
+    def test_import_json_with_category(self, login_admin, sample_category):
+        """JSON 导入时包含课程分类"""
+        json_content = json.dumps([
+            {
+                "name": "体育健康",
+                "code": "PE101",
+                "teacher": "吴教授",
+                "credits": 1.0,
+                "capacity": 40,
+                "semester": "2026-秋季",
+                "category_name": "体育分项",
+            },
+        ])
+        data = {"file": (io.BytesIO(json_content.encode("utf-8")), "courses.json")}
+        response = login_admin.post(
+            "/admin/courses/import",
+            data=data,
+            content_type="multipart/form-data",
+            follow_redirects=False,
+        )
+        assert response.status_code == 200
+        assert "成功导入 1" in response.get_data(as_text=True)
+
+        from selectcourse.models.course import Course
+        c = Course.query.filter_by(code="PE101").first()
+        assert c is not None
+        assert c.category is not None
+        assert c.category.name == "体育分项"
+
+    def test_import_unknown_category_warns(self, login_admin):
+        """导入时使用系统中不存在的分类应警告但不阻断"""
+        csv_content = (
+            "课程名称,课程编号,授课教师,学分,容量,学期,课程分类\n"
+            "测试课程,TEST_CAT,王教授,2.0,50,2026-秋季,不存在的分类XYZ\n"
+        )
+        data = {"file": (io.BytesIO(csv_content.encode("utf-8")), "courses.csv")}
+        response = login_admin.post(
+            "/admin/courses/import",
+            data=data,
+            content_type="multipart/form-data",
+            follow_redirects=False,
+        )
+        assert response.status_code == 200
+        text = response.get_data(as_text=True)
+        # 应提示分类不存在
+        assert "不存在" in text or "不存在的分类XYZ" in text
+        # 课程仍然成功导入（无分类）
+        assert "成功导入 1" in text
+
+        from selectcourse.models.course import Course
+        c = Course.query.filter_by(code="TEST_CAT").first()
+        assert c is not None
+        assert c.category_id is None
+
 
 class TestAdminCategoryManagement:
     """管理员课程分类管理测试"""

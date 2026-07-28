@@ -247,6 +247,12 @@ def import_courses():
                 cat = CourseCategory.query.filter_by(name=category_name).first()
                 if cat:
                     category_id = cat.id
+                else:
+                    # 分类不存在时发出警告但不阻断导入（课程将以无分类导入）
+                    errors.append(
+                        f"第 {i} 行分类「{category_name}」在系统中不存在，"
+                        f"课程将以无分类导入。如需使用该分类，请先在管理后台添加。"
+                    )
 
             try:
                 course = Course(
