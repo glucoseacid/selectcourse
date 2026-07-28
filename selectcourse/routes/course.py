@@ -96,6 +96,44 @@ def detail(course_id: int):
     return render_template("course/detail.html", course=course, enrolled=enrolled)
 
 
+@course_bp.route("/<int:course_id>/info")
+@login_required
+def course_info(course_id: int):
+    """返回课程详细信息的 JSON API（用于弹窗）。"""
+    from flask import jsonify
+
+    course = db.session.get(Course, course_id)
+    if course is None:
+        return jsonify({"error": "课程不存在"}), 404
+
+    days_label = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+
+    return jsonify({
+        "id": course.id,
+        "name": course.name,
+        "code": course.code,
+        "teacher": course.teacher,
+        "credits": course.credits,
+        "capacity": course.capacity,
+        "enrolled_count": course.enrolled_count,
+        "available_slots": course.available_slots,
+        "semester": course.semester,
+        "location": course.location or "",
+        "description": course.description or "",
+        "category": course.category.name if course.category else "",
+        "schedules": [
+            {
+                "day_of_week": s.day_of_week,
+                "day_label": days_label[s.day_of_week],
+                "start_time": s.start_time,
+                "end_time": s.end_time,
+            }
+            for s in (course.schedules or [])
+        ],
+        "is_full": course.is_full,
+    })
+
+
 @course_bp.route("/<int:course_id>/enroll", methods=["POST"])
 @login_required
 def enroll(course_id: int):

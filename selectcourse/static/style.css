@@ -886,7 +886,7 @@ main.container {
     font-size: 0.7rem;
     line-height: 1.3;
     overflow: hidden;
-    cursor: default;
+    cursor: pointer;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
     transition: transform 0.12s, box-shadow 0.12s;
     z-index: 1;
@@ -931,6 +931,137 @@ main.container {
     margin-top: 8px;
 }
 
+/* --- 课程详情弹窗 --- */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.modal-overlay.modal-visible {
+    display: flex;
+}
+
+.modal-content {
+    background: #fff;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 560px;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    animation: modalSlideIn 0.2s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from { opacity: 0; transform: translateY(-20px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.modal-header h3 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--gray-900);
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--gray-500);
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 4px;
+    transition: color 0.15s;
+}
+
+.modal-close:hover {
+    color: var(--danger);
+}
+
+.modal-body {
+    padding: 16px 20px;
+}
+
+.modal-loading {
+    text-align: center;
+    color: var(--gray-500);
+    padding: 20px 0;
+}
+
+.modal-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.modal-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.modal-info-full {
+    grid-column: 1 / -1;
+}
+
+.modal-info-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.modal-info-value {
+    font-size: 0.9rem;
+    color: var(--gray-900);
+}
+
+.modal-schedule-tag {
+    display: inline-block;
+    background: var(--primary-light);
+    color: var(--primary);
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    margin: 2px 4px 2px 0;
+}
+
+.badge-danger {
+    background: #fef2f2;
+    color: var(--danger);
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: 4px;
+}
+
+.modal-footer {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    padding: 12px 20px 16px;
+    border-top: 1px solid var(--gray-100);
+}
+
 /* --- 打印样式 --- */
 @media print {
     .navbar,
@@ -939,6 +1070,7 @@ main.container {
     .timetable-toolbar,
     .timetable-legend,
     .timetable-actions,
+    .modal-overlay,
     .btn {
         display: none !important;
     }

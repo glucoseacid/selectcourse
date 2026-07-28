@@ -402,6 +402,47 @@ class TestPeriodMapping:
         assert end == 7
 
 
+class TestCourseInfoAPI:
+    """课程信息 JSON API 测试"""
+
+    def test_info_requires_login(self, client):
+        """未登录无法访问"""
+        response = client.get("/course/1/info")
+        assert response.status_code in (302, 401)
+
+    def test_info_returns_json(self, login_student, sample_course):
+        """已登录返回 JSON 课程详情"""
+        response = login_student.get(f"/course/{sample_course.id}/info")
+        assert response.status_code == 200
+        assert response.content_type == "application/json"
+
+        data = response.get_json()
+        assert data["name"] == "Python 程序设计"
+        assert data["code"] == "CS101"
+        assert data["teacher"] == "张教授"
+        assert data["credits"] == 3.0
+        assert data["capacity"] == 2
+        assert data["semester"] == "2026-秋季"
+        assert data["location"] == "教学楼A-301"
+        assert len(data["schedules"]) == 1
+        assert data["schedules"][0]["day_of_week"] == 1
+        assert data["schedules"][0]["day_label"] == "周二"
+
+    def test_info_not_found(self, login_student):
+        """课程不存在返回 404"""
+        response = login_student.get("/course/9999/info")
+        assert response.status_code == 404
+        data = response.get_json()
+        assert "error" in data
+
+    def test_info_admin_can_access(self, login_admin, sample_course):
+        """管理员也能访问课程信息 API"""
+        response = login_admin.get(f"/course/{sample_course.id}/info")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["name"] == "Python 程序设计"
+
+
 # 辅助函数
 def db_session_get(course_id):
     from selectcourse.extensions import db

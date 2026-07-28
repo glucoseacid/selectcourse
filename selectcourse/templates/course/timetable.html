@@ -65,7 +65,9 @@
                     {% if block.start_period == period %}
                     <div class="course-block"
                          style="background: {{ block.color }};"
-                         data-rowspan="{{ block.rowspan }}">
+                         data-course-id="{{ block.course_id }}"
+                         data-rowspan="{{ block.rowspan }}"
+                         onclick="showCourseDetail({{ block.course_id }})">
                         <div class="course-block-name">{{ block.course_name }}</div>
                         <div class="course-block-code">{{ block.course_code }}</div>
                         <div class="course-block-teacher">👨‍🏫 {{ block.teacher }}</div>
@@ -88,6 +90,23 @@
     <button class="btn btn-secondary btn-sm" onclick="window.print()">🖨️ 打印课表</button>
 </div>
 {% endif %}
+
+{# 课程详情弹窗 #}
+<div id="course-modal" class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3 id="modal-course-name"></h3>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="modal-body">
+            <div class="modal-loading">加载中...</div>
+        </div>
+        <div class="modal-footer">
+            <a id="modal-detail-link" href="#" class="btn btn-sm btn-primary">查看完整详情</a>
+            <button class="btn btn-sm btn-secondary" onclick="closeModal()">关闭</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -95,5 +114,97 @@
 function switchSemester(semester) {
     window.location.href = "{{ url_for('course.timetable') }}?semester=" + encodeURIComponent(semester);
 }
+
+async function showCourseDetail(courseId) {
+    const modal = document.getElementById('course-modal');
+    const body = document.getElementById('modal-body');
+    const nameEl = document.getElementById('modal-course-name');
+    const linkEl = document.getElementById('modal-detail-link');
+
+    // 显示加载状态
+    nameEl.textContent = '';
+    body.innerHTML = '<div class="modal-loading">加载中...</div>';
+    linkEl.href = '/course/' + courseId;
+    modal.classList.add('modal-visible');
+
+    try {
+        const resp = await fetch('/course/' + courseId + '/info');
+        if (!resp.ok) {
+            body.innerHTML = '<p class="text-danger">加载课程信息失败。</p>';
+            return;
+        }
+        const course = await resp.json();
+
+        nameEl.textContent = course.name;
+
+        let schedulesHtml = '';
+        if (course.schedules && course.schedules.length > 0) {
+            schedulesHtml = course.schedules.map(s =>
+                '<span class="modal-schedule-tag">' + s.day_label + ' ' + s.start_time + '-' + s.end_time + '</span>'
+            ).join('');
+        }
+
+        body.innerHTML = `
+            <div class="modal-info-grid">
+                <div class="modal-info-item">
+                    <span class="modal-info-label">课程编号</span>
+                    <span class="modal-info-value">${escapeHtml(course.code)}</span>
+                </div>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">授课教师</span>
+                    <span class="modal-info-value">${escapeHtml(course.teacher)}</span>
+                </div>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">学分</span>
+                    <span class="modal-info-value">${course.credits}</span>
+                </div>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">学期</span>
+                    <span class="modal-info-value">${escapeHtml(course.semester)}</span>
+                </div>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">上课地点</span>
+                    <span class="modal-info-value">${escapeHtml(course.location) || '—'}</span>
+                </div>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">课程分类</span>
+                    <span class="modal-info-value">${escapeHtml(course.category) || '—'}</span>
+                </div>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">选课人数</span>
+                    <span class="modal-info-value">${course.enrolled_count} / ${course.capacity} ${course.is_full ? '<span class="badge badge-danger text-danger">已满</span>' : ''}</span>
+                </div>
+                <div class="modal-info-item modal-info-full">
+                    <span class="modal-info-label">上课时间</span>
+                    <span class="modal-info-value">${schedulesHtml || '—'}</span>
+                </div>
+                <div class="modal-info-item modal-info-full">
+                    <span class="modal-info-label">课程描述</span>
+                    <span class="modal-info-value">${escapeHtml(course.description) || '暂无描述'}</span>
+                </div>
+            </div>
+        `;
+    } catch (err) {
+        body.innerHTML = '<p class="text-danger">网络错误，请重试。</p>';
+    }
+}
+
+function closeModal(event) {
+    if (event && event.target !== document.getElementById('course-modal')) return;
+    document.getElementById('course-modal').classList.remove('modal-visible');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ESC 关闭弹窗
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        document.getElementById('course-modal').classList.remove('modal-visible');
+    }
+});
 </script>
 {% endblock %}
