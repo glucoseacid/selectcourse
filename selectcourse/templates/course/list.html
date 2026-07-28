@@ -23,9 +23,9 @@
 </form>
 
 {% if courses %}
-<div class="course-grid">
+<div class="course-grid" id="course-grid">
     {% for course in courses %}
-    <div class="course-card {% if course.is_full %}course-full{% endif %}">
+    <div class="course-card {% if course.is_full %}course-full{% endif %}" id="course-{{ course.id }}">
         <div class="course-card-header">
             <h3>{{ course.name }}</h3>
             <span class="course-code-badge">{{ course.code }}</span>
@@ -84,4 +84,36 @@
     <p>📭 暂无课程数据</p>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    // 使用当前页面查询参数构建唯一的 sessionStorage key
+    var pageKey = 'scrollPos_' + window.location.pathname + window.location.search;
+
+    // 页面加载时恢复滚动位置
+    var savedScrollY = sessionStorage.getItem(pageKey);
+    if (savedScrollY !== null) {
+        window.scrollTo(0, parseInt(savedScrollY, 10));
+        sessionStorage.removeItem(pageKey);
+    }
+
+    // 点击「详情」链接时保存当前滚动位置
+    var courseGrid = document.getElementById('course-grid');
+    if (courseGrid) {
+        courseGrid.addEventListener('click', function (e) {
+            var link = e.target.closest('a[href*="/course/"]');
+            if (link && !link.href.match(/\/course\/\d+\/(enroll|drop)/)) {
+                sessionStorage.setItem(pageKey, window.scrollY);
+            }
+        });
+    }
+
+    // 页面离开时也保存（处理浏览器后退等场景）
+    window.addEventListener('beforeunload', function () {
+        sessionStorage.setItem(pageKey, window.scrollY);
+    });
+})();
+</script>
 {% endblock %}

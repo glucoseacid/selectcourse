@@ -2,7 +2,7 @@
 {% block title %}{{ course.name }} - 课程详情{% endblock %}
 {% block content %}
 <div class="page-header">
-    <a href="{{ url_for('course.list_courses') }}" class="btn btn-sm">&laquo; 返回列表</a>
+    <a href="{{ url_for('course.list_courses') }}" class="btn btn-sm" id="btn-back-list">&laquo; 返回列表</a>
     <h2>{{ course.name }}</h2>
 </div>
 
@@ -72,4 +72,24 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var backBtn = document.getElementById('btn-back-list');
+    if (backBtn && document.referrer && document.referrer.indexOf(window.location.origin) === 0) {
+        // 如果上一页是同站点页面，优先使用 history.back() 保留完整页面状态
+        backBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            var fallbackUrl = backBtn.href;
+            window.history.back();
+            // 兜底：300ms 后若仍未离开（history 为空等异常情况），强制跳转列表页
+            setTimeout(function () {
+                window.location.href = fallbackUrl;
+            }, 300);
+        });
+    }
+})();
+</script>
 {% endblock %}
