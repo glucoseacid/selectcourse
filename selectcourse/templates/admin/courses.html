@@ -8,6 +8,16 @@
     <a href="{{ url_for('admin.import_courses') }}" class="btn btn-secondary">📥 批量导入</a>
 </div>
 
+<div class="search-bar">
+    <form method="GET" action="{{ url_for('admin.manage_courses') }}" style="display:flex;gap:8px;width:100%;">
+        <input type="text" name="q" value="{{ search_q }}" placeholder="搜索课程名称、编号或教师...">
+        <button type="submit" class="btn btn-primary">🔍 搜索</button>
+        {% if search_q %}
+        <a href="{{ url_for('admin.manage_courses') }}" class="btn btn-sm btn-secondary">清除</a>
+        {% endif %}
+    </form>
+</div>
+
 {% if courses %}
 <table class="data-table">
     <thead>
@@ -46,16 +56,16 @@
 
 <div class="pagination">
     {% if pagination.has_prev %}
-    <a href="{{ url_for('admin.manage_courses', page=pagination.prev_num) }}">&laquo; 上一页</a>
+    <a href="{{ url_for('admin.manage_courses', page=pagination.prev_num, q=search_q) }}">&laquo; 上一页</a>
     {% endif %}
     <span>第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
     {% if pagination.has_next %}
-    <a href="{{ url_for('admin.manage_courses', page=pagination.next_num) }}">下一页 &raquo;</a>
+    <a href="{{ url_for('admin.manage_courses', page=pagination.next_num, q=search_q) }}">下一页 &raquo;</a>
     {% endif %}
 </div>
 {% else %}
 <div class="empty-state">
-    <p>📭 暂无课程，<a href="{{ url_for('admin.create_course') }}">添加第一门课程</a></p>
+    <p>📭 {% if search_q %}未找到匹配"{{ search_q }}"的课程{% else %}暂无课程，<a href="{{ url_for('admin.create_course') }}">添加第一门课程</a>{% endif %}</p>
 </div>
 {% endif %}
 {% endblock %}

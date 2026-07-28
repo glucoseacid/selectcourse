@@ -139,6 +139,55 @@ class TestAdminCourseManagement:
         from selectcourse.models.course import Course
         assert Course.query.get(sample_course.id) is None
 
+    # ---- 课程搜索 ----
+
+    def test_search_courses_by_name(self, login_admin, sample_course):
+        """按课程名称搜索"""
+        response = login_admin.get("/admin/courses?q=Python")
+        assert response.status_code == 200
+        assert "Python" in response.get_data(as_text=True)
+
+    def test_search_courses_by_code(self, login_admin, sample_course):
+        """按课程编号搜索"""
+        response = login_admin.get("/admin/courses?q=CS101")
+        assert response.status_code == 200
+        assert "Python" in response.get_data(as_text=True)
+
+    def test_search_courses_by_teacher(self, login_admin, sample_course):
+        """按授课教师搜索"""
+        response = login_admin.get("/admin/courses?q=张教授")
+        assert response.status_code == 200
+        assert "Python" in response.get_data(as_text=True)
+
+    def test_search_courses_no_match(self, login_admin, sample_course):
+        """搜索无匹配课程"""
+        response = login_admin.get("/admin/courses?q=不存在zzz")
+        assert response.status_code == 200
+        assert "未找到匹配" in response.get_data(as_text=True)
+
+    def test_search_courses_empty_query(self, login_admin, sample_course):
+        """空搜索关键词显示全部课程"""
+        response = login_admin.get("/admin/courses")
+        assert response.status_code == 200
+        assert "Python" in response.get_data(as_text=True)
+
+    def test_search_courses_preserved_in_pagination(self, login_admin):
+        """搜索关键词在分页链接中保留"""
+        # 创建多门课程以触发分页
+        from selectcourse.models.course import Course
+        from selectcourse.extensions import db
+        for i in range(20):
+            c = Course(
+                name=f"Python高级课程{i}", code=f"PY{i:03d}", teacher="教师",
+                credits=2.0, capacity=50, semester="2026-秋季",
+            )
+            db.session.add(c)
+        db.session.commit()
+        response = login_admin.get("/admin/courses?q=Python&page=1")
+        assert response.status_code == 200
+        html = response.get_data(as_text=True)
+        assert "q=Python" in html
+
 
 class TestAdminStudentManagement:
     """管理员学生管理测试"""
@@ -375,6 +424,53 @@ class TestAdminStudentManagement:
             follow_redirects=True,
         )
         assert "需要管理员权限" in response.get_data(as_text=True)
+
+    # ---- 学生搜索 ----
+
+    def test_search_students_by_username(self, login_admin, student_user):
+        """按用户名搜索学生"""
+        response = login_admin.get("/admin/students?q=teststudent")
+        assert response.status_code == 200
+        assert "teststudent" in response.get_data(as_text=True)
+
+    def test_search_students_by_email(self, login_admin, student_user):
+        """按邮箱搜索学生"""
+        response = login_admin.get("/admin/students?q=student@test.edu")
+        assert response.status_code == 200
+        assert "teststudent" in response.get_data(as_text=True)
+
+    def test_search_students_partial_match(self, login_admin, student_user):
+        """模糊搜索学生"""
+        response = login_admin.get("/admin/students?q=test")
+        assert response.status_code == 200
+        assert "teststudent" in response.get_data(as_text=True)
+
+    def test_search_students_no_match(self, login_admin, student_user):
+        """搜索无匹配学生"""
+        response = login_admin.get("/admin/students?q=不存在zzz")
+        assert response.status_code == 200
+        assert "未找到匹配" in response.get_data(as_text=True)
+
+    def test_search_students_empty_query(self, login_admin, student_user):
+        """空搜索关键词显示全部学生"""
+        response = login_admin.get("/admin/students")
+        assert response.status_code == 200
+        assert "teststudent" in response.get_data(as_text=True)
+
+    def test_search_students_preserved_in_pagination(self, login_admin):
+        """搜索关键词在分页链接中保留"""
+        # 创建多个学生以触发分页
+        from selectcourse.models.user import User
+        from selectcourse.extensions import db
+        for i in range(20):
+            u = User(username=f"testuser{i}", email=f"test{i}@test.edu", role="student")
+            u.set_password("pass123")
+            db.session.add(u)
+        db.session.commit()
+        response = login_admin.get("/admin/students?q=test&page=1")
+        assert response.status_code == 200
+        html = response.get_data(as_text=True)
+        assert "q=test" in html
 
 
 class TestAdminCourseImport:

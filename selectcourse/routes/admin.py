@@ -52,12 +52,25 @@ def dashboard():
 @admin_bp.route("/courses")
 @admin_required
 def manage_courses():
+    q = (request.args.get("q", "") or "").strip()
     page = request.args.get("page", 1, type=int)
-    pagination = Course.query.order_by(Course.code).paginate(
+
+    query = Course.query
+    if q:
+        pattern = f"%{q}%"
+        query = query.filter(
+            db.or_(
+                Course.name.ilike(pattern),
+                Course.code.ilike(pattern),
+                Course.teacher.ilike(pattern),
+            )
+        )
+
+    pagination = query.order_by(Course.code).paginate(
         page=page, per_page=15, error_out=False
     )
     return render_template(
-        "admin/courses.html", courses=pagination.items, pagination=pagination
+        "admin/courses.html", courses=pagination.items, pagination=pagination, search_q=q
     )
 
 
@@ -331,12 +344,24 @@ def import_courses():
 @admin_bp.route("/students")
 @admin_required
 def manage_students():
+    q = (request.args.get("q", "") or "").strip()
     page = request.args.get("page", 1, type=int)
-    pagination = User.query.filter_by(role="student").order_by(User.username).paginate(
+
+    query = User.query.filter_by(role="student")
+    if q:
+        pattern = f"%{q}%"
+        query = query.filter(
+            db.or_(
+                User.username.ilike(pattern),
+                User.email.ilike(pattern),
+            )
+        )
+
+    pagination = query.order_by(User.username).paginate(
         page=page, per_page=15, error_out=False
     )
     return render_template(
-        "admin/students.html", students=pagination.items, pagination=pagination
+        "admin/students.html", students=pagination.items, pagination=pagination, search_q=q
     )
 
 
