@@ -38,3 +38,6 @@ coverage.xml
 .DS_Store
 Thumbs.db
 selectcourse-dev.agent.md
+
+#测试数据
+测试数据创建/

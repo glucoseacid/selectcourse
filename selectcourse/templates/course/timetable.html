@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}课程表 - 网上选课系统{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h2>📅 课程表</h2>
+    <div style="display:flex; gap:8px; align-items:center;">
+        <a href="{{ url_for('course.my_courses') }}" class="btn btn-secondary btn-sm">卡片视图</a>
+        <a href="{{ url_for('course.list_courses') }}" class="btn btn-primary btn-sm">浏览课程</a>
+    </div>
+</div>
+
+{# 学期切换栏 #}
+<div class="timetable-toolbar">
+    <div class="timetable-semester-selector">
+        <label for="semester-select">学期：</label>
+        <select id="semester-select" onchange="switchSemester(this.value)">
+            {% for sem in semesters %}
+            <option value="{{ sem }}" {% if sem == current_semester %}selected{% endif %}>{{ sem }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="timetable-summary">
+        <span>📊 共 <strong>{{ course_count }}</strong> 门课，<strong>{{ total_credits }}</strong> 学分</span>
+    </div>
+</div>
+
+{% if course_count == 0 %}
+<div class="empty-state">
+    <p>📭 当前学期暂无已选课程</p>
+    <a href="{{ url_for('course.list_courses') }}" class="btn btn-primary">去选课</a>
+</div>
+{% else %}
+{# 图例 #}
+<div class="timetable-legend">
+    {% for cid, color in timetable.colors.items() %}
+    {% set course_name = timetable.course_names.get(cid, '') %}
+    <span class="legend-item">
+        <span class="legend-color" style="background:{{ color }};"></span>
+        {{ course_name }}
+    </span>
+    {% endfor %}
+</div>
+
+{# 课表主体 #}
+<div class="timetable-wrapper">
+    <table class="timetable-grid">
+        <thead>
+            <tr>
+                <th class="period-header">节次</th>
+                {% for day_name in days_label %}
+                <th class="day-header">{{ day_name }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for period in periods %}
+            <tr>
+                <td class="period-cell">
+                    <span class="period-num">{{ period }}</span>
+                </td>
+                {% for day in range(7) %}
+                <td class="grid-cell" data-day="{{ day }}" data-period="{{ period }}">
+                    {% set cell_blocks = timetable.grid[day][period] %}
+                    {% for block in cell_blocks %}
+                    {% if block.start_period == period %}
+                    <div class="course-block"
+                         style="background: {{ block.color }};"
+                         data-rowspan="{{ block.rowspan }}">
+                        <div class="course-block-name">{{ block.course_name }}</div>
+                        <div class="course-block-code">{{ block.course_code }}</div>
+                        <div class="course-block-teacher">👨‍🏫 {{ block.teacher }}</div>
+                        {% if block.location %}
+                        <div class="course-block-location">📍 {{ block.location }}</div>
+                        {% endif %}
+                        <div class="course-block-time">🕐 {{ block.start_time }}-{{ block.end_time }}</div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="timetable-actions">
+    <button class="btn btn-secondary btn-sm" onclick="window.print()">🖨️ 打印课表</button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchSemester(semester) {
+    window.location.href = "{{ url_for('course.timetable') }}?semester=" + encodeURIComponent(semester);
+}
+</script>
+{% endblock %}

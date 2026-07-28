@@ -1,13 +1,21 @@
-"""课程路由（浏览 / 详情 / 选课 / 退课）"""
+"""课程路由（浏览 / 详情 / 选课 / 退课 / 课表）"""
 from datetime import datetime, timezone
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from selectcourse.extensions import db
-from selectcourse.models.course import Course
+from selectcourse.models.course import Course, CourseSchedule
 from selectcourse.models.category import CourseCategory
 from selectcourse.models.selection import Selection
 
 course_bp = Blueprint("course", __name__)
+
+# 课表配色（17 种颜色循环使用）
+TIMETABLE_COLORS = [
+    "#E74C3C", "#3498DB", "#2ECC71", "#9B59B6", "#F39C12",
+    "#1ABC9C", "#E67E22", "#2980B9", "#27AE60", "#8E44AD",
+    "#D35400", "#16A085", "#C0392B", "#2C3E50", "#7F8C8D",
+    "#F1C40F", "#00B894",
+]
 
 
 @course_bp.route("/")
@@ -168,3 +176,119 @@ def my_courses():
         .all()
     )
     return render_template("course/my_courses.html", selections=selections)
+
+
+def _build_timetable_grid(selections: list[Selection]) -> dict:
+    """将选课记录构建为课表网格数据。
+
+    Returns:
+        dict with keys:
+          - grid: dict[day_of_week][period_num] = list of course blocks
+          - colors: dict[course_id] = color hex string
+          - course_count: int
+    """
+    days = 7   # 0=周一 … 6=周日
+    periods = 12
+
+    # 初始化空白网格
+    grid: dict[int, dict[int, list[dict]]] = {
+        d: {p: [] for p in range(1, periods + 1)} for d in range(days)
+    }
+
+    colors: dict[int, str] = {}
+    course_names: dict[int, str] = {}
+    color_idx = 0
+
+    for selection in selections:
+        course = selection.course
+        # 分配颜色与名称
+        if course.id not in colors:
+            colors[course.id] = TIMETABLE_COLORS[color_idx % len(TIMETABLE_COLORS)]
+            course_names[course.id] = course.name
+            color_idx += 1
+
+        for schedule in course.schedules:
+            start_p, end_p = CourseSchedule.period_range(
+                schedule.start_time, schedule.end_time
+            )
+            day = schedule.day_of_week
+            rowspan = end_p - start_p + 1
+
+            block = {
+                "course_id": course.id,
+                "course_name": course.name,
+                "course_code": course.code,
+                "teacher": course.teacher,
+                "location": course.location or "",
+                "semester": course.semester,
+                "start_period": start_p,
+                "end_period": end_p,
+                "rowspan": rowspan,
+                "start_time": schedule.start_time,
+                "end_time": schedule.end_time,
+                "color": colors[course.id],
+            }
+            grid[day][start_p].append(block)
+
+    return {
+        "grid": grid,
+        "colors": colors,
+        "course_names": course_names,
+        "course_count": len(selections),
+    }
+
+
+@course_bp.route("/timetable")
+@login_required
+def timetable():
+    """学生课表视图（表格模式）。"""
+    if current_user.is_admin:
+        return redirect(url_for("admin.dashboard"))
+
+    semester = request.args.get("semester", "")
+
+    # 获取学生已选课程
+    query = (
+        Selection.query
+        .filter_by(student_id=current_user.id, status="enrolled")
+        .join(Course)
+    )
+    if semester:
+        query = query.filter(Course.semester == semester)
+    selections = query.order_by(Selection.enrolled_at.desc()).all()
+
+    # 获取可选学期列表
+    semesters = [
+        row[0]
+        for row in db.session.query(Course.semester)
+        .join(Selection, Selection.course_id == Course.id)
+        .filter(Selection.student_id == current_user.id, Selection.status == "enrolled")
+        .distinct()
+        .order_by(Course.semester)
+        .all()
+    ]
+
+    # 如果未指定学期，默认使用第一个可用学期
+    if not semester and semesters:
+        semester = semesters[0]
+        query = (
+            Selection.query
+            .filter_by(student_id=current_user.id, status="enrolled")
+            .join(Course)
+            .filter(Course.semester == semester)
+        )
+        selections = query.order_by(Selection.enrolled_at.desc()).all()
+
+    timetable_data = _build_timetable_grid(selections)
+    total_credits = sum(s.course.credits for s in selections)
+
+    return render_template(
+        "course/timetable.html",
+        timetable=timetable_data,
+        semesters=semesters,
+        current_semester=semester,
+        total_credits=total_credits,
+        course_count=timetable_data["course_count"],
+        days_label=["周一", "周二", "周三", "周四", "周五", "周六", "周日"],
+        periods=list(range(1, 13)),
+    )

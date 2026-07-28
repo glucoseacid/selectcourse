@@ -291,6 +291,117 @@ class TestMyCourses:
         assert "Python 程序设计" in response.get_data(as_text=True)
 
 
+class TestTimetable:
+    """课表视图测试"""
+
+    def test_timetable_page_requires_login(self, client):
+        """课表页面需要登录"""
+        response = client.get("/course/timetable", follow_redirects=True)
+        assert "请先登录" in response.get_data(as_text=True)
+
+    def test_timetable_shows_enrolled_courses(self, client, enrolled_student, sample_course):
+        """课表页显示已选课程"""
+        client.post("/auth/login", data={
+            "username": "teststudent",
+            "password": "password123",
+        })
+        response = client.get("/course/timetable")
+        assert response.status_code == 200
+        content = response.get_data(as_text=True)
+        assert "Python 程序设计" in content
+        assert "CS101" in content
+
+    def test_timetable_semester_filter(self, client, enrolled_student, sample_course, db):
+        """课表学期筛选"""
+        # 创建另一学期的课程
+        course2 = Course(
+            name="高等数学", code="MATH101", teacher="陈教授",
+            credits=4.0, capacity=60, semester="2027-春季",
+        )
+        db.session.add(course2)
+        db.session.flush()
+        schedule2 = CourseSchedule(
+            course_id=course2.id, day_of_week=2, start_time="10:00", end_time="11:40",
+        )
+        db.session.add(schedule2)
+
+        sel2 = Selection(
+            student_id=enrolled_student.id, course_id=course2.id, status="enrolled",
+        )
+        db.session.add(sel2)
+        db.session.commit()
+
+        client.post("/auth/login", data={
+            "username": "teststudent",
+            "password": "password123",
+        })
+
+        # 默认学期筛选
+        response = client.get("/course/timetable")
+        content = response.get_data(as_text=True)
+        # 应有学期选择器
+        assert '<select id="semester-select"' in content
+
+        # 按学期筛选
+        response2 = client.get("/course/timetable?semester=2027-春季")
+        content2 = response2.get_data(as_text=True)
+        assert "高等数学" in content2
+
+    def test_timetable_empty_no_courses(self, login_student):
+        """无选课时课表页仍可访问"""
+        response = login_student.get("/course/timetable")
+        assert response.status_code == 200
+        assert "暂无已选课程" in response.get_data(as_text=True)
+
+    def test_admin_redirected_from_timetable(self, login_admin):
+        """管理员访问课表被重定向"""
+        response = login_admin.get("/course/timetable", follow_redirects=False)
+        assert response.status_code == 302
+
+
+class TestPeriodMapping:
+    """节次映射测试"""
+
+    def test_period_for_time_morning(self):
+        """上午时间映射"""
+        assert CourseSchedule.period_for_time("08:00") == 1
+        assert CourseSchedule.period_for_time("08:30") == 1
+        assert CourseSchedule.period_for_time("08:50") == 2
+        assert CourseSchedule.period_for_time("09:20") == 2
+        assert CourseSchedule.period_for_time("10:30") == 3
+
+    def test_period_for_time_afternoon(self):
+        """下午时间映射"""
+        assert CourseSchedule.period_for_time("14:00") == 5
+        assert CourseSchedule.period_for_time("15:20") == 6
+        assert CourseSchedule.period_for_time("16:30") == 7
+
+    def test_period_for_time_evening(self):
+        """晚上时间映射"""
+        assert CourseSchedule.period_for_time("19:00") == 9
+        assert CourseSchedule.period_for_time("20:20") == 10
+        assert CourseSchedule.period_for_time("21:50") == 12
+
+    def test_period_range_two_periods(self):
+        """两节课的时间段"""
+        start, end = CourseSchedule.period_range("08:00", "09:40")
+        assert start == 1
+        # 09:40 处于 09:35~10:00 的间隙，应在第2节
+        assert end == 2
+
+    def test_period_range_single_period(self):
+        """单节课的时间段"""
+        start, end = CourseSchedule.period_range("10:00", "10:45")
+        assert start == 3
+        assert end == 3
+
+    def test_period_range_three_periods(self):
+        """三节课的时间段"""
+        start, end = CourseSchedule.period_range("14:00", "16:45")
+        assert start == 5
+        assert end == 7
+
+
 # 辅助函数
 def db_session_get(course_id):
     from selectcourse.extensions import db

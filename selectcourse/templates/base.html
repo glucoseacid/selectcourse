@@ -18,6 +18,7 @@
                         <a href="{{ url_for('admin.manage_students') }}">学生管理</a>
                     {% else %}
                         <a href="{{ url_for('course.list_courses') }}">课程列表</a>
+                        <a href="{{ url_for('course.timetable') }}">课程表</a>
                         <a href="{{ url_for('course.my_courses') }}">我的选课</a>
                     {% endif %}
                     <span class="nav-user">{{ current_user.username }}</span>
@@ -43,6 +44,8 @@
     <main class="container">
         {% block content %}{% endblock %}
     </main>
+
+    {% block scripts %}{% endblock %}
 
     <footer class="footer">
         <div class="container">

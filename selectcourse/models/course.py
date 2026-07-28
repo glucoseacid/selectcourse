@@ -97,6 +97,47 @@ class CourseSchedule(db.Model):
                     )
         return False, None
 
+    # 标准节次时间映射（每节 45 分钟，课间 5-10 分钟）
+    PERIOD_TIMES = [
+        (1,  "08:00", "08:45"),
+        (2,  "08:50", "09:35"),
+        (3,  "10:00", "10:45"),
+        (4,  "10:50", "11:35"),
+        (5,  "14:00", "14:45"),
+        (6,  "14:50", "15:35"),
+        (7,  "16:00", "16:45"),
+        (8,  "16:50", "17:35"),
+        (9,  "19:00", "19:45"),
+        (10, "19:50", "20:35"),
+        (11, "20:50", "21:35"),
+        (12, "21:40", "22:25"),
+    ]
+
+    @classmethod
+    def period_for_time(cls, time_str: str) -> int | None:
+        """返回给定时间所属的节次编号，无法匹配则返回 None。"""
+        minutes = cls._time_to_minutes(time_str)
+        for period_num, start, end in cls.PERIOD_TIMES:
+            if cls._time_to_minutes(start) <= minutes < cls._time_to_minutes(end):
+                return period_num
+        # 边界：恰好等于最后一节的结束时间
+        last_end = cls._time_to_minutes(cls.PERIOD_TIMES[-1][2])
+        if minutes == last_end:
+            return cls.PERIOD_TIMES[-1][0]
+        return None
+
+    @classmethod
+    def period_range(cls, start_time: str, end_time: str) -> tuple[int, int]:
+        """返回课程时间覆盖的起始/结束节次（闭区间）。"""
+        start_period = cls.period_for_time(start_time) or 1
+        end_minutes = cls._time_to_minutes(end_time)
+        # 找到最后一个开始时间早于结束时间的节次
+        end_period = start_period
+        for pn, ps, pe in cls.PERIOD_TIMES:
+            if cls._time_to_minutes(ps) < end_minutes:
+                end_period = pn
+        return (start_period, max(start_period, end_period))
+
     def __repr__(self) -> str:
         days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
         return f"<Schedule {days[self.day_of_week]} {self.start_time}-{self.end_time}>"
